@@ -215,14 +215,6 @@ function getStatus(r: any): string {
 }
 
 function Overview({ records }: { records: any[] }) {
-  if (!records || records.length === 0) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 80, gap: 16 }}>
-        <div className="ugc-spinner" />
-        <div style={{ color: "#6B7280", fontSize: 14 }}>Loading data...</div>
-      </div>
-    );
-  }
   const { latestRows, minDate, maxDate, count } = useMemo(() => {
     const dates = records.map((r) => r.date).filter(Boolean).sort();
     const years = records.map((r) => Number(r.year)).filter((y) => !isNaN(y));
@@ -237,6 +229,15 @@ function Overview({ records }: { records: any[] }) {
   }, [records]);
 
   const heading: React.CSSProperties = { fontSize: 18, color: "#111827", fontWeight: 600, margin: "0 0 12px" };
+
+  if (!records || records.length === 0) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 80, gap: 16 }}>
+        <div className="ugc-spinner" />
+        <div style={{ color: "#6B7280", fontSize: 14 }}>Loading data...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "grid", gap: 24 }}>
