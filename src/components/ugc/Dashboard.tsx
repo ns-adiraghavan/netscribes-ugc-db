@@ -1,0 +1,374 @@
+import { useEffect, useMemo, useState } from "react";
+
+declare global {
+  interface Window {
+    pako?: { inflate: (data: Uint8Array, opts: { to: "string" }) => string };
+  }
+}
+
+type Platform = "flipkart" | "myntra";
+
+const CREDS: Record<string, { password: string; platform: Platform }> = {
+  "flipkart@netscribes.com": { password: "fk@ugc2025", platform: "flipkart" as Platform },
+  "myntra@netscribes.com": { password: "myn@ugc2025", platform: "myntra" as Platform },
+};
+
+const COLORS = {
+  primary: "#1A56DB",
+  danger: "#E02424",
+  success: "#057A55",
+  amber: "#D97706",
+  bg: "#F8F9FA",
+  border: "#E5E7EB",
+  text: "#111827",
+  muted: "#6B7280",
+};
+
+const card: React.CSSProperties = {
+  background: "#fff",
+  borderRadius: 8,
+  boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+  padding: 20,
+};
+
+function Login({ onLogin, error, loading }: { onLogin: (e: string, p: string) => void; error: string; loading: boolean }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  return (
+    <div style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{ ...card, width: "100%", maxWidth: 400 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: COLORS.text, marginBottom: 4 }}>Netscribes</h1>
+        <p style={{ color: COLORS.muted, fontSize: 14, marginBottom: 24 }}>UGC Moderation Dashboard</p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onLogin(email.trim().toLowerCase(), password);
+          }}
+        >
+          <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            style={{ width: "100%", padding: "10px 12px", border: `1px solid ${COLORS.border}`, borderRadius: 8, marginBottom: 14, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" }}
+          />
+          <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            style={{ width: "100%", padding: "10px 12px", border: `1px solid ${COLORS.border}`, borderRadius: 8, marginBottom: 14, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" }}
+          />
+          {error && <div style={{ color: COLORS.danger, fontSize: 13, marginBottom: 12 }}>{error}</div>}
+          <button
+            type="submit"
+            disabled={loading}
+            style={{ width: "100%", padding: "10px 12px", background: COLORS.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: loading ? "wait" : "pointer", fontFamily: "inherit" }}
+          >
+            {loading ? "Loading data..." : "Sign in"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Nav({ platform, onLogout, tab, setTab }: { platform: Platform; onLogout: () => void; tab: string; setTab: (t: string) => void }) {
+  const badgeColor = platform === "flipkart" ? COLORS.primary : COLORS.danger;
+  const badgeText = platform === "flipkart" ? "Flipkart UGC" : "Myntra UGC";
+  const tabs = ["Overview", "Trends", "Daily", "Entry Form"];
+  return (
+    <div style={{ background: "#fff", borderBottom: `1px solid ${COLORS.border}` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px" }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.text }}>Netscribes</div>
+        <div style={{ background: badgeColor, color: "#fff", padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600 }}>{badgeText}</div>
+        <button
+          onClick={onLogout}
+          style={{ padding: "8px 14px", background: "#fff", color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          Logout
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 4, padding: "0 24px" }}>
+        {tabs.map((t) => {
+          const active = tab === t;
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              style={{
+                padding: "10px 16px",
+                background: "transparent",
+                color: active ? COLORS.primary : COLORS.muted,
+                border: "none",
+                borderBottom: active ? `2px solid ${COLORS.primary}` : "2px solid transparent",
+                fontSize: 14,
+                fontWeight: active ? 600 : 500,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {t}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function getDateField(r: any): string | null {
+  for (const k of ["date", "Date", "created_at", "createdAt", "timestamp", "day"]) {
+    if (r && r[k]) return String(r[k]).slice(0, 10);
+  }
+  return null;
+}
+
+function getStatus(r: any): string {
+  for (const k of ["status", "Status", "moderation_status", "decision", "verdict"]) {
+    if (r && r[k]) return String(r[k]);
+  }
+  return "unknown";
+}
+
+function Overview({ records }: { records: any[] }) {
+  const stats = useMemo(() => {
+    const byStatus: Record<string, number> = {};
+    for (const r of records) {
+      const s = getStatus(r).toLowerCase();
+      byStatus[s] = (byStatus[s] || 0) + 1;
+    }
+    return byStatus;
+  }, [records]);
+
+  const total = records.length;
+  const approved = Object.entries(stats).filter(([k]) => k.includes("approve") || k.includes("accept")).reduce((a, [, v]) => a + v, 0);
+  const rejected = Object.entries(stats).filter(([k]) => k.includes("reject")).reduce((a, [, v]) => a + v, 0);
+  const pending = Object.entries(stats).filter(([k]) => k.includes("pend") || k.includes("review")).reduce((a, [, v]) => a + v, 0);
+
+  const kpis = [
+    { label: "Total Records", value: total, color: COLORS.primary },
+    { label: "Approved", value: approved, color: COLORS.success },
+    { label: "Rejected", value: rejected, color: COLORS.danger },
+    { label: "Pending", value: pending, color: COLORS.amber },
+  ];
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
+        {kpis.map((k) => (
+          <div key={k.label} style={card}>
+            <div style={{ color: COLORS.muted, fontSize: 13, marginBottom: 8 }}>{k.label}</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: k.color }}>{k.value.toLocaleString()}</div>
+          </div>
+        ))}
+      </div>
+      <div style={card}>
+        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Status Breakdown</h3>
+        {Object.entries(stats).length === 0 ? (
+          <p style={{ color: COLORS.muted, fontSize: 14 }}>No data.</p>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            {Object.entries(stats).sort((a, b) => b[1] - a[1]).map(([k, v]) => {
+              const pct = total ? (v / total) * 100 : 0;
+              return (
+                <div key={k}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                    <span style={{ textTransform: "capitalize" }}>{k}</span>
+                    <span style={{ color: COLORS.muted }}>{v.toLocaleString()} ({pct.toFixed(1)}%)</span>
+                  </div>
+                  <div style={{ height: 8, background: COLORS.bg, borderRadius: 8, overflow: "hidden" }}>
+                    <div style={{ width: `${pct}%`, height: "100%", background: COLORS.primary }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Trends({ records }: { records: any[] }) {
+  const series = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const r of records) {
+      const d = getDateField(r);
+      if (!d) continue;
+      map[d] = (map[d] || 0) + 1;
+    }
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  }, [records]);
+
+  const max = Math.max(1, ...series.map(([, v]) => v));
+
+  return (
+    <div style={card}>
+      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Volume Trend</h3>
+      {series.length === 0 ? (
+        <p style={{ color: COLORS.muted, fontSize: 14 }}>No date data available.</p>
+      ) : (
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 240, overflowX: "auto", paddingBottom: 24, position: "relative" }}>
+          {series.map(([d, v]) => (
+            <div key={d} style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 24 }}>
+              <div title={`${d}: ${v}`} style={{ width: 20, height: `${(v / max) * 200}px`, background: COLORS.primary, borderRadius: 4 }} />
+              <div style={{ fontSize: 10, color: COLORS.muted, marginTop: 4, transform: "rotate(-45deg)", transformOrigin: "left", whiteSpace: "nowrap" }}>{d}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Daily({ records }: { records: any[] }) {
+  const rows = useMemo(() => {
+    const map: Record<string, { total: number; approved: number; rejected: number; pending: number }> = {};
+    for (const r of records) {
+      const d = getDateField(r);
+      if (!d) continue;
+      if (!map[d]) map[d] = { total: 0, approved: 0, rejected: 0, pending: 0 };
+      const s = getStatus(r).toLowerCase();
+      map[d].total++;
+      if (s.includes("approve") || s.includes("accept")) map[d].approved++;
+      else if (s.includes("reject")) map[d].rejected++;
+      else if (s.includes("pend") || s.includes("review")) map[d].pending++;
+    }
+    return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
+  }, [records]);
+
+  return (
+    <div style={card}>
+      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Daily Breakdown</h3>
+      {rows.length === 0 ? (
+        <p style={{ color: COLORS.muted, fontSize: 14 }}>No date data available.</p>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${COLORS.border}`, textAlign: "left" }}>
+                <th style={{ padding: "10px 8px", fontWeight: 600 }}>Date</th>
+                <th style={{ padding: "10px 8px", fontWeight: 600 }}>Total</th>
+                <th style={{ padding: "10px 8px", fontWeight: 600, color: COLORS.success }}>Approved</th>
+                <th style={{ padding: "10px 8px", fontWeight: 600, color: COLORS.danger }}>Rejected</th>
+                <th style={{ padding: "10px 8px", fontWeight: 600, color: COLORS.amber }}>Pending</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(([d, v]) => (
+                <tr key={d} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                  <td style={{ padding: "10px 8px" }}>{d}</td>
+                  <td style={{ padding: "10px 8px" }}>{v.total}</td>
+                  <td style={{ padding: "10px 8px" }}>{v.approved}</td>
+                  <td style={{ padding: "10px 8px" }}>{v.rejected}</td>
+                  <td style={{ padding: "10px 8px" }}>{v.pending}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EntryForm({ records }: { records: any[] }) {
+  const sample = records[0] || {};
+  const fields = Object.keys(sample).slice(0, 8);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState(false);
+
+  return (
+    <div style={card}>
+      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>New Entry</h3>
+      {fields.length === 0 ? (
+        <p style={{ color: COLORS.muted, fontSize: 14 }}>No data schema detected.</p>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setSubmitted(true);
+            setTimeout(() => setSubmitted(false), 2500);
+          }}
+          style={{ display: "grid", gap: 12, maxWidth: 600 }}
+        >
+          {fields.map((f) => (
+            <div key={f}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 4, textTransform: "capitalize" }}>{f.replace(/_/g, " ")}</label>
+              <input
+                value={form[f] || ""}
+                onChange={(e) => setForm({ ...form, [f]: e.target.value })}
+                style={{ width: "100%", padding: "10px 12px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" }}
+              />
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <button
+              type="submit"
+              style={{ padding: "10px 20px", background: COLORS.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Submit
+            </button>
+            {submitted && <span style={{ color: COLORS.success, fontSize: 13 }}>Entry captured (in-memory only).</span>}
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+export default function Dashboard() {
+  const [platform, setPlatform] = useState<Platform | null>(null);
+  const [records, setRecords] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [tab, setTab] = useState("Overview");
+
+  const handleLogin = async (email: string, password: string) => {
+    const c = CREDS[email];
+    if (!c || c.password !== password) {
+      setError("Invalid credentials. Please try again.");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const url = c.platform === "flipkart" ? "/flipkart_ugc.json.gz" : "/myntra_ugc.json.gz";
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to load data");
+      const buf = await res.arrayBuffer();
+      if (!window.pako) throw new Error("pako not loaded");
+      const text = window.pako.inflate(new Uint8Array(buf), { to: "string" });
+      const data = JSON.parse(text);
+      setRecords(Array.isArray(data) ? data : data.records || data.data || []);
+      setPlatform(c.platform);
+      setTab("Overview");
+    } catch (e: any) {
+      setError(e?.message || "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setRecords([]);
+    setPlatform(null);
+  };
+
+  if (!platform) return <Login onLogin={handleLogin} error={error} loading={loading} />;
+
+  return (
+    <div style={{ minHeight: "100vh", background: COLORS.bg }}>
+      <Nav platform={platform} onLogout={handleLogout} tab={tab} setTab={setTab} />
+      <div style={{ padding: 24, maxWidth: 1280, margin: "0 auto" }}>
+        {tab === "Overview" && <Overview records={records} />}
+        {tab === "Trends" && <Trends records={records} />}
+        {tab === "Daily" && <Daily records={records} />}
+        {tab === "Entry Form" && <EntryForm records={records} />}
+      </div>
+    </div>
+  );
+}
