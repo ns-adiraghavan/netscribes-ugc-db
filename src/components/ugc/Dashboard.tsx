@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Trends from "./Trends";
+import DailyTab from "./Daily";
 
 declare global {
   interface Window {
@@ -221,57 +222,6 @@ function Overview({ records }: { records: any[] }) {
   );
 }
 
-function Daily({ records }: { records: any[] }) {
-  const rows = useMemo(() => {
-    const map: Record<string, { total: number; approved: number; rejected: number; pending: number }> = {};
-    for (const r of records) {
-      const d = getDateField(r);
-      if (!d) continue;
-      if (!map[d]) map[d] = { total: 0, approved: 0, rejected: 0, pending: 0 };
-      const s = getStatus(r).toLowerCase();
-      map[d].total++;
-      if (s.includes("approve") || s.includes("accept")) map[d].approved++;
-      else if (s.includes("reject")) map[d].rejected++;
-      else if (s.includes("pend") || s.includes("review")) map[d].pending++;
-    }
-    return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
-  }, [records]);
-
-  return (
-    <div style={card}>
-      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Daily Breakdown</h3>
-      {rows.length === 0 ? (
-        <p style={{ color: COLORS.muted, fontSize: 14 }}>No date data available.</p>
-      ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-            <thead>
-              <tr style={{ borderBottom: `1px solid ${COLORS.border}`, textAlign: "left" }}>
-                <th style={{ padding: "10px 8px", fontWeight: 600 }}>Date</th>
-                <th style={{ padding: "10px 8px", fontWeight: 600 }}>Total</th>
-                <th style={{ padding: "10px 8px", fontWeight: 600, color: COLORS.success }}>Approved</th>
-                <th style={{ padding: "10px 8px", fontWeight: 600, color: COLORS.danger }}>Rejected</th>
-                <th style={{ padding: "10px 8px", fontWeight: 600, color: COLORS.amber }}>Pending</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(([d, v]) => (
-                <tr key={d} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                  <td style={{ padding: "10px 8px" }}>{d}</td>
-                  <td style={{ padding: "10px 8px" }}>{v.total}</td>
-                  <td style={{ padding: "10px 8px" }}>{v.approved}</td>
-                  <td style={{ padding: "10px 8px" }}>{v.rejected}</td>
-                  <td style={{ padding: "10px 8px" }}>{v.pending}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function EntryForm({ records }: { records: any[] }) {
   const sample = records[0] || {};
   const fields = Object.keys(sample).slice(0, 8);
@@ -363,7 +313,7 @@ export default function Dashboard() {
       <div style={{ padding: 24, maxWidth: 1280, margin: "0 auto" }}>
         {tab === "Overview" && <Overview records={records} />}
         {tab === "Trends" && <Trends records={records} platform={platform} />}
-        {tab === "Daily" && <Daily records={records} />}
+        {tab === "Daily" && <DailyTab records={records} platform={platform} />}
         {tab === "Entry Form" && <EntryForm records={records} />}
       </div>
     </div>
