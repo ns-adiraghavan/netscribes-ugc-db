@@ -333,7 +333,7 @@ export default function Dashboard() {
     setError("");
     setLoading(true);
     try {
-      const url = c.platform === "flipkart" ? "/flipkart_ugc.json.gz" : "/myntra_ugc.json.gz";
+      const url = c.platform === "flipkart" ? "/flipkart_ugc.gz.bin" : "/myntra_ugc.gz.bin";
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to load data");
       const buf = await res.arrayBuffer();
