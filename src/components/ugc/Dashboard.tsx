@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Trends from "./Trends";
 import DailyTab from "./Daily";
+import EntryForm from "./EntryForm";
 
 declare global {
   interface Window {
@@ -246,51 +247,6 @@ function Overview({ records }: { records: any[] }) {
   );
 }
 
-function EntryForm({ records }: { records: any[] }) {
-  const sample = records[0] || {};
-  const fields = Object.keys(sample).slice(0, 8);
-  const [form, setForm] = useState<Record<string, string>>({});
-  const [submitted, setSubmitted] = useState(false);
-
-  return (
-    <div style={card}>
-      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>New Entry</h3>
-      {fields.length === 0 ? (
-        <p style={{ color: COLORS.muted, fontSize: 14 }}>No data schema detected.</p>
-      ) : (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setSubmitted(true);
-            setTimeout(() => setSubmitted(false), 2500);
-          }}
-          style={{ display: "grid", gap: 12, maxWidth: 600 }}
-        >
-          {fields.map((f) => (
-            <div key={f}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 4, textTransform: "capitalize" }}>{f.replace(/_/g, " ")}</label>
-              <input
-                value={form[f] || ""}
-                onChange={(e) => setForm({ ...form, [f]: e.target.value })}
-                style={{ width: "100%", padding: "10px 12px", border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" }}
-              />
-            </div>
-          ))}
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <button
-              type="submit"
-              style={{ padding: "10px 20px", background: COLORS.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-            >
-              Submit
-            </button>
-            {submitted && <span style={{ color: COLORS.success, fontSize: 13 }}>Entry captured (in-memory only).</span>}
-          </div>
-        </form>
-      )}
-    </div>
-  );
-}
-
 export default function Dashboard() {
   const [platform, setPlatform] = useState<Platform | null>(null);
   const [records, setRecords] = useState<any[]>([]);
@@ -338,7 +294,7 @@ export default function Dashboard() {
         {tab === "Overview" && <Overview records={records} />}
         {tab === "Trends" && <Trends records={records} platform={platform} />}
         {tab === "Daily" && <DailyTab records={records} platform={platform} />}
-        {tab === "Entry Form" && <EntryForm records={records} />}
+        {tab === "Entry Form" && <EntryForm records={records} setRecords={setRecords} platform={platform} />}
       </div>
     </div>
   );
