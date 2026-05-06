@@ -188,59 +188,33 @@ function getStatus(r: any): string {
 }
 
 function Overview({ records }: { records: any[] }) {
-  const stats = useMemo(() => {
-    const byStatus: Record<string, number> = {};
-    for (const r of records) {
-      const s = getStatus(r).toLowerCase();
-      byStatus[s] = (byStatus[s] || 0) + 1;
-    }
-    return byStatus;
+  const { latestRows, minDate, maxDate, count } = useMemo(() => {
+    const dates = records.map((r) => r.date).filter(Boolean).sort();
+    const years = records.map((r) => Number(r.year)).filter((y) => !isNaN(y));
+    const maxYear = years.length ? Math.max(...years) : null;
+    const latestRows = maxYear != null ? records.filter((r) => Number(r.year) === maxYear) : [];
+    return {
+      latestRows,
+      minDate: dates[0] || "—",
+      maxDate: dates[dates.length - 1] || "—",
+      count: records.length,
+    };
   }, [records]);
 
-  const total = records.length;
-  const approved = Object.entries(stats).filter(([k]) => k.includes("approve") || k.includes("accept")).reduce((a, [, v]) => a + v, 0);
-  const rejected = Object.entries(stats).filter(([k]) => k.includes("reject")).reduce((a, [, v]) => a + v, 0);
-  const pending = Object.entries(stats).filter(([k]) => k.includes("pend") || k.includes("review")).reduce((a, [, v]) => a + v, 0);
-
-  const kpis = [
-    { label: "Total Records", value: total, color: COLORS.primary },
-    { label: "Approved", value: approved, color: COLORS.success },
-    { label: "Rejected", value: rejected, color: COLORS.danger },
-    { label: "Pending", value: pending, color: COLORS.amber },
-  ];
+  const heading: React.CSSProperties = { fontSize: 18, color: "#111827", fontWeight: 600, margin: "0 0 12px" };
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-        {kpis.map((k) => (
-          <div key={k.label} style={card}>
-            <div style={{ color: COLORS.muted, fontSize: 13, marginBottom: 8 }}>{k.label}</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: k.color }}>{k.value.toLocaleString()}</div>
-          </div>
-        ))}
+    <div style={{ display: "grid", gap: 24 }}>
+      <div>
+        <h2 style={heading}>All-time Summary</h2>
+        <KpiRow rows={records} />
       </div>
-      <div style={card}>
-        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Status Breakdown</h3>
-        {Object.entries(stats).length === 0 ? (
-          <p style={{ color: COLORS.muted, fontSize: 14 }}>No data.</p>
-        ) : (
-          <div style={{ display: "grid", gap: 8 }}>
-            {Object.entries(stats).sort((a, b) => b[1] - a[1]).map(([k, v]) => {
-              const pct = total ? (v / total) * 100 : 0;
-              return (
-                <div key={k}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                    <span style={{ textTransform: "capitalize" }}>{k}</span>
-                    <span style={{ color: COLORS.muted }}>{v.toLocaleString()} ({pct.toFixed(1)}%)</span>
-                  </div>
-                  <div style={{ height: 8, background: COLORS.bg, borderRadius: 8, overflow: "hidden" }}>
-                    <div style={{ width: `${pct}%`, height: "100%", background: COLORS.primary }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+      <div>
+        <h2 style={heading}>Latest Year Summary</h2>
+        <KpiRow rows={latestRows} />
+      </div>
+      <div style={{ fontSize: 12, fontStyle: "italic", color: "#6B7280" }}>
+        Data from {minDate} to {maxDate}. {count} days on record.
       </div>
     </div>
   );
