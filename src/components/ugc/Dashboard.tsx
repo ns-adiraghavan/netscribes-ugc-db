@@ -182,9 +182,9 @@ function Nav({ platform, onLogout, tab, setTab }: { platform: Platform; onLogout
               style={{
                 padding: "10px 16px",
                 background: "transparent",
-                color: active ? COLORS.primary : COLORS.muted,
+                color: active ? badgeColor : COLORS.muted,
                 border: "none",
-                borderBottom: active ? `2px solid ${COLORS.primary}` : "2px solid transparent",
+                borderBottom: active ? `3px solid ${badgeColor}` : "3px solid transparent",
                 fontSize: 14,
                 fontWeight: active ? 600 : 500,
                 cursor: "pointer",
@@ -229,6 +229,15 @@ function Overview({ records }: { records: any[] }) {
   }, [records]);
 
   const heading: React.CSSProperties = { fontSize: 18, color: "#111827", fontWeight: 600, margin: "0 0 12px" };
+
+  if (!records || records.length === 0) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 80, gap: 16 }}>
+        <div className="ugc-spinner" />
+        <div style={{ color: "#6B7280", fontSize: 14 }}>Loading data...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "grid", gap: 24 }}>
