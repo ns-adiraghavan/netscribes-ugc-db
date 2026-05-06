@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import Trends from "./Trends";
 
 declare global {
   interface Window {
@@ -220,38 +221,6 @@ function Overview({ records }: { records: any[] }) {
   );
 }
 
-function Trends({ records }: { records: any[] }) {
-  const series = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const r of records) {
-      const d = getDateField(r);
-      if (!d) continue;
-      map[d] = (map[d] || 0) + 1;
-    }
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
-  }, [records]);
-
-  const max = Math.max(1, ...series.map(([, v]) => v));
-
-  return (
-    <div style={card}>
-      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Volume Trend</h3>
-      {series.length === 0 ? (
-        <p style={{ color: COLORS.muted, fontSize: 14 }}>No date data available.</p>
-      ) : (
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 240, overflowX: "auto", paddingBottom: 24, position: "relative" }}>
-          {series.map(([d, v]) => (
-            <div key={d} style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 24 }}>
-              <div title={`${d}: ${v}`} style={{ width: 20, height: `${(v / max) * 200}px`, background: COLORS.primary, borderRadius: 4 }} />
-              <div style={{ fontSize: 10, color: COLORS.muted, marginTop: 4, transform: "rotate(-45deg)", transformOrigin: "left", whiteSpace: "nowrap" }}>{d}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function Daily({ records }: { records: any[] }) {
   const rows = useMemo(() => {
     const map: Record<string, { total: number; approved: number; rejected: number; pending: number }> = {};
@@ -393,7 +362,7 @@ export default function Dashboard() {
       <Nav platform={platform} onLogout={handleLogout} tab={tab} setTab={setTab} />
       <div style={{ padding: 24, maxWidth: 1280, margin: "0 auto" }}>
         {tab === "Overview" && <Overview records={records} />}
-        {tab === "Trends" && <Trends records={records} />}
+        {tab === "Trends" && <Trends records={records} platform={platform} />}
         {tab === "Daily" && <Daily records={records} />}
         {tab === "Entry Form" && <EntryForm records={records} />}
       </div>
