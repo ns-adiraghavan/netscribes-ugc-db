@@ -7,9 +7,8 @@ declare global {
 }
 
 type Platform = "flipkart" | "myntra";
-type Record = Record<string, any>;
 
-const CREDS: Record = {
+const CREDS: Record<string, { password: string; platform: Platform }> = {
   "flipkart@netscribes.com": { password: "fk@ugc2025", platform: "flipkart" as Platform },
   "myntra@netscribes.com": { password: "myn@ugc2025", platform: "myntra" as Platform },
 };
