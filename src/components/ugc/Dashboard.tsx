@@ -182,9 +182,9 @@ function Nav({ platform, onLogout, tab, setTab }: { platform: Platform; onLogout
               style={{
                 padding: "10px 16px",
                 background: "transparent",
-                color: active ? COLORS.primary : COLORS.muted,
+                color: active ? badgeColor : COLORS.muted,
                 border: "none",
-                borderBottom: active ? `2px solid ${COLORS.primary}` : "2px solid transparent",
+                borderBottom: active ? `3px solid ${badgeColor}` : "3px solid transparent",
                 fontSize: 14,
                 fontWeight: active ? 600 : 500,
                 cursor: "pointer",
