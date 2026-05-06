@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Trends from "./Trends";
 import DailyTab from "./Daily";
 import EntryForm from "./EntryForm";
+import logo from "@/assets/netscribes-logo.png";
 
 declare global {
   interface Window {
@@ -118,7 +119,7 @@ function Login({ onLogin, error, loading }: { onLogin: (e: string, p: string) =>
   return (
     <div style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ ...card, width: "100%", maxWidth: 400 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: COLORS.text, marginBottom: 4 }}>Netscribes</h1>
+        <img src={logo} alt="Netscribes" style={{ height: 40, width: "auto", display: "block", marginBottom: 12 }} />
         <p style={{ color: COLORS.muted, fontSize: 14, marginBottom: 24 }}>UGC Moderation Dashboard</p>
         <form
           onSubmit={(e) => {
@@ -163,7 +164,7 @@ function Nav({ platform, onLogout, tab, setTab }: { platform: Platform; onLogout
   return (
     <div style={{ background: "#fff", borderBottom: `1px solid ${COLORS.border}` }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px" }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.text }}>Netscribes</div>
+        <img src={logo} alt="Netscribes" style={{ height: 32, width: "auto", display: "block" }} />
         <div style={{ background: badgeColor, color: "#fff", padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600 }}>{badgeText}</div>
         <button
           onClick={onLogout}
