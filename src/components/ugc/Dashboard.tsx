@@ -31,6 +31,60 @@ const card: React.CSSProperties = {
   padding: 20,
 };
 
+function tatToHours(tat: string | null | undefined): number | null {
+  if (!tat) return null;
+  const [h, m, s] = tat.split(":").map(Number);
+  return h + m / 60 + s / 3600;
+}
+
+function fmtNum(n: number): string {
+  return Math.round(n).toLocaleString();
+}
+
+function percentile(sorted: number[], p: number): number {
+  if (!sorted.length) return 0;
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+function computeKpis(rows: any[]) {
+  const inflow = rows.reduce((a, r) => a + (Number(r.total_received) || 0), 0);
+  const outflow = rows.reduce((a, r) => a + (Number(r.total_delivered) || 0), 0);
+  const tats = rows.map((r) => tatToHours(r.tat)).filter((v): v is number => v != null && !isNaN(v));
+  const avg = tats.length ? tats.reduce((a, b) => a + b, 0) / tats.length : 0;
+  const sorted = [...tats].sort((a, b) => a - b);
+  const p95 = percentile(sorted, 95);
+  const over24 = tats.filter((v) => v > 24).length;
+  return { inflow, outflow, avg, p95, over24, tatCount: tats.length };
+}
+
+function KpiCard({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+  return (
+    <div style={card}>
+      <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: valueColor || "#111827" }}>{value}</div>
+    </div>
+  );
+}
+
+function KpiRow({ rows }: { rows: any[] }) {
+  const k = computeKpis(rows);
+  const p95Color = k.p95 > 24 ? COLORS.danger : "#111827";
+  const over24Color = k.over24 > 20 ? COLORS.danger : k.over24 <= 10 ? COLORS.success : COLORS.amber;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+      <KpiCard label="Total Inflow" value={fmtNum(k.inflow)} />
+      <KpiCard label="Total Outflow" value={fmtNum(k.outflow)} />
+      <KpiCard label="Avg TAT" value={`${k.avg.toFixed(1)}h`} />
+      <KpiCard label="P95 TAT" value={`${k.p95.toFixed(1)}h`} valueColor={p95Color} />
+      <KpiCard label="Days TAT > 24h" value={String(k.over24)} valueColor={over24Color} />
+    </div>
+  );
+}
+
 function Login({ onLogin, error, loading }: { onLogin: (e: string, p: string) => void; error: string; loading: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -134,59 +188,33 @@ function getStatus(r: any): string {
 }
 
 function Overview({ records }: { records: any[] }) {
-  const stats = useMemo(() => {
-    const byStatus: Record<string, number> = {};
-    for (const r of records) {
-      const s = getStatus(r).toLowerCase();
-      byStatus[s] = (byStatus[s] || 0) + 1;
-    }
-    return byStatus;
+  const { latestRows, minDate, maxDate, count } = useMemo(() => {
+    const dates = records.map((r) => r.date).filter(Boolean).sort();
+    const years = records.map((r) => Number(r.year)).filter((y) => !isNaN(y));
+    const maxYear = years.length ? Math.max(...years) : null;
+    const latestRows = maxYear != null ? records.filter((r) => Number(r.year) === maxYear) : [];
+    return {
+      latestRows,
+      minDate: dates[0] || "—",
+      maxDate: dates[dates.length - 1] || "—",
+      count: records.length,
+    };
   }, [records]);
 
-  const total = records.length;
-  const approved = Object.entries(stats).filter(([k]) => k.includes("approve") || k.includes("accept")).reduce((a, [, v]) => a + v, 0);
-  const rejected = Object.entries(stats).filter(([k]) => k.includes("reject")).reduce((a, [, v]) => a + v, 0);
-  const pending = Object.entries(stats).filter(([k]) => k.includes("pend") || k.includes("review")).reduce((a, [, v]) => a + v, 0);
-
-  const kpis = [
-    { label: "Total Records", value: total, color: COLORS.primary },
-    { label: "Approved", value: approved, color: COLORS.success },
-    { label: "Rejected", value: rejected, color: COLORS.danger },
-    { label: "Pending", value: pending, color: COLORS.amber },
-  ];
+  const heading: React.CSSProperties = { fontSize: 18, color: "#111827", fontWeight: 600, margin: "0 0 12px" };
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-        {kpis.map((k) => (
-          <div key={k.label} style={card}>
-            <div style={{ color: COLORS.muted, fontSize: 13, marginBottom: 8 }}>{k.label}</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: k.color }}>{k.value.toLocaleString()}</div>
-          </div>
-        ))}
+    <div style={{ display: "grid", gap: 24 }}>
+      <div>
+        <h2 style={heading}>All-time Summary</h2>
+        <KpiRow rows={records} />
       </div>
-      <div style={card}>
-        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Status Breakdown</h3>
-        {Object.entries(stats).length === 0 ? (
-          <p style={{ color: COLORS.muted, fontSize: 14 }}>No data.</p>
-        ) : (
-          <div style={{ display: "grid", gap: 8 }}>
-            {Object.entries(stats).sort((a, b) => b[1] - a[1]).map(([k, v]) => {
-              const pct = total ? (v / total) * 100 : 0;
-              return (
-                <div key={k}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                    <span style={{ textTransform: "capitalize" }}>{k}</span>
-                    <span style={{ color: COLORS.muted }}>{v.toLocaleString()} ({pct.toFixed(1)}%)</span>
-                  </div>
-                  <div style={{ height: 8, background: COLORS.bg, borderRadius: 8, overflow: "hidden" }}>
-                    <div style={{ width: `${pct}%`, height: "100%", background: COLORS.primary }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+      <div>
+        <h2 style={heading}>Latest Year Summary</h2>
+        <KpiRow rows={latestRows} />
+      </div>
+      <div style={{ fontSize: 12, fontStyle: "italic", color: "#6B7280" }}>
+        Data from {minDate} to {maxDate}. {count} days on record.
       </div>
     </div>
   );
