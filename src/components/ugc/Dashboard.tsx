@@ -8,6 +8,30 @@ declare global {
   }
 }
 
+function loadPako(): Promise<NonNullable<Window["pako"]>> {
+  if (typeof window === "undefined") return Promise.reject(new Error("no window"));
+  if (window.pako) return Promise.resolve(window.pako);
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[data-pako="1"]');
+    const onReady = () => {
+      if (window.pako) resolve(window.pako);
+      else reject(new Error("pako failed to load"));
+    };
+    if (existing) {
+      existing.addEventListener("load", onReady);
+      existing.addEventListener("error", () => reject(new Error("pako script error")));
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js";
+    s.async = true;
+    s.dataset.pako = "1";
+    s.onload = onReady;
+    s.onerror = () => reject(new Error("pako script error"));
+    document.head.appendChild(s);
+  });
+}
+
 type Platform = "flipkart" | "myntra";
 
 const CREDS: Record<string, { password: string; platform: Platform }> = {
@@ -287,8 +311,8 @@ export default function Dashboard() {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to load data");
       const buf = await res.arrayBuffer();
-      if (!window.pako) throw new Error("pako not loaded");
-      const text = window.pako.inflate(new Uint8Array(buf), { to: "string" });
+      const pako = await loadPako();
+      const text = pako.inflate(new Uint8Array(buf), { to: "string" });
       const data = JSON.parse(text);
       setRecords(Array.isArray(data) ? data : data.records || data.data || []);
       setPlatform(c.platform);
