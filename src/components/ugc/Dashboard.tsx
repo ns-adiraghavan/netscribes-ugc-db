@@ -31,6 +31,60 @@ const card: React.CSSProperties = {
   padding: 20,
 };
 
+function tatToHours(tat: string | null | undefined): number | null {
+  if (!tat) return null;
+  const [h, m, s] = tat.split(":").map(Number);
+  return h + m / 60 + s / 3600;
+}
+
+function fmtNum(n: number): string {
+  return Math.round(n).toLocaleString();
+}
+
+function percentile(sorted: number[], p: number): number {
+  if (!sorted.length) return 0;
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+function computeKpis(rows: any[]) {
+  const inflow = rows.reduce((a, r) => a + (Number(r.total_received) || 0), 0);
+  const outflow = rows.reduce((a, r) => a + (Number(r.total_delivered) || 0), 0);
+  const tats = rows.map((r) => tatToHours(r.tat)).filter((v): v is number => v != null && !isNaN(v));
+  const avg = tats.length ? tats.reduce((a, b) => a + b, 0) / tats.length : 0;
+  const sorted = [...tats].sort((a, b) => a - b);
+  const p95 = percentile(sorted, 95);
+  const over24 = tats.filter((v) => v > 24).length;
+  return { inflow, outflow, avg, p95, over24, tatCount: tats.length };
+}
+
+function KpiCard({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+  return (
+    <div style={card}>
+      <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: valueColor || "#111827" }}>{value}</div>
+    </div>
+  );
+}
+
+function KpiRow({ rows }: { rows: any[] }) {
+  const k = computeKpis(rows);
+  const p95Color = k.p95 > 24 ? COLORS.danger : "#111827";
+  const over24Color = k.over24 > 20 ? COLORS.danger : k.over24 <= 10 ? COLORS.success : COLORS.amber;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+      <KpiCard label="Total Inflow" value={fmtNum(k.inflow)} />
+      <KpiCard label="Total Outflow" value={fmtNum(k.outflow)} />
+      <KpiCard label="Avg TAT" value={`${k.avg.toFixed(1)}h`} />
+      <KpiCard label="P95 TAT" value={`${k.p95.toFixed(1)}h`} valueColor={p95Color} />
+      <KpiCard label="Days TAT > 24h" value={String(k.over24)} valueColor={over24Color} />
+    </div>
+  );
+}
+
 function Login({ onLogin, error, loading }: { onLogin: (e: string, p: string) => void; error: string; loading: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
