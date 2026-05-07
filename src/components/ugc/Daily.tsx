@@ -342,6 +342,16 @@ function DetailTable({
   const cols = platform === "flipkart" ? FK_COLS : MY_COLS;
   const rows = [...filtered].sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
+  const [configOpen, setConfigOpen] = useState(false);
+  const [visibility, setVisibility] = useState<Record<string, boolean>>(() => {
+    const v: Record<string, boolean> = { tat: true };
+    for (const c of cols) v[c.key] = true;
+    return v;
+  });
+  const visibleCols = cols.filter((c) => c.key === "date" || visibility[c.key]);
+  const tatVisible = visibility.tat;
+  const toggleable = cols.filter((c) => c.key !== "date");
+
   const th: React.CSSProperties = {
     fontSize: 11,
     textTransform: "uppercase",
@@ -362,17 +372,67 @@ function DetailTable({
 
   return (
     <div style={card}>
-      <h3 style={heading}>Day-level Detail</h3>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <h3 style={{ ...heading, margin: 0 }}>Day-level Detail</h3>
+        <button
+          onClick={() => setConfigOpen((v) => !v)}
+          style={{
+            fontSize: 12,
+            fontFamily: "inherit",
+            padding: "4px 10px",
+            borderRadius: 6,
+            border: `1px solid ${COLORS.border}`,
+            background: "#fff",
+            color: COLORS.text,
+            cursor: "pointer",
+          }}
+        >
+          Configure columns
+        </button>
+      </div>
+      {configOpen && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            padding: 12,
+            marginBottom: 12,
+            background: "#F9FAFB",
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 6,
+          }}
+        >
+          {toggleable.map((c) => (
+            <label key={c.key} style={{ fontSize: 12, color: COLORS.text, display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={!!visibility[c.key]}
+                onChange={(e) => setVisibility((v) => ({ ...v, [c.key]: e.target.checked }))}
+              />
+              {c.label}
+            </label>
+          ))}
+          <label style={{ fontSize: 12, color: COLORS.text, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={!!visibility.tat}
+              onChange={(e) => setVisibility((v) => ({ ...v, tat: e.target.checked }))}
+            />
+            TAT
+          </label>
+        </div>
+      )}
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "inherit" }}>
           <thead>
             <tr>
-              {cols.map((c) => (
+              {visibleCols.map((c) => (
                 <th key={c.key} style={th}>
                   {c.label}
                 </th>
               ))}
-              <th style={th}>TAT</th>
+              {tatVisible && <th style={th}>TAT</th>}
             </tr>
           </thead>
           <tbody>
@@ -383,7 +443,7 @@ function DetailTable({
                 tatHrs == null ? COLORS.muted : tatHrs < 24 ? "#057A55" : COLORS.danger;
               return (
                 <tr key={i} style={{ background: bg }}>
-                  {cols.map((c) => {
+                  {visibleCols.map((c) => {
                     const v = c.get(r);
                     const display = c.key === "date" ? v : Number(v).toLocaleString();
                     return (
@@ -392,9 +452,11 @@ function DetailTable({
                       </td>
                     );
                   })}
-                  <td style={{ ...td, color: tatColor, fontWeight: 500 }}>
-                    {r.tat ?? "—"}
-                  </td>
+                  {tatVisible && (
+                    <td style={{ ...td, color: tatColor, fontWeight: 500 }}>
+                      {r.tat ?? "—"}
+                    </td>
+                  )}
                 </tr>
               );
             })}
