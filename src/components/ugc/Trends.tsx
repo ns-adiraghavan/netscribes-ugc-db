@@ -168,11 +168,22 @@ export default function Trends({ records, platform }: { records: any[]; platform
   const slicers = platform === "flipkart" ? FLIPKART_SLICERS : MYNTRA_SLICERS;
   const [view, setView] = useState<"monthly" | "weekly">("monthly");
   const [slicerKey, setSlicerKey] = useState<string>("total");
+  const [year, setYear] = useState<"all" | "2025" | "2026">("all");
   const slicer = slicers.find((s) => s.key === slicerKey) || slicers[0];
+
+  const yearFiltered = useMemo(() => {
+    if (year === "all") return records;
+    return records.filter((r) => {
+      const d = String(r.date || "");
+      if (d.startsWith(year)) return true;
+      const w = String(r.week || "");
+      return w.includes(year);
+    });
+  }, [records, year]);
 
   const monthly = useMemo(() => {
     const map: Record<string, { inflow: number; outflow: number; tatSum: number; tatCount: number }> = {};
-    for (const r of records) {
+    for (const r of yearFiltered) {
       if (!r.date) continue;
       const ym = String(r.date).slice(0, 7);
       if (!map[ym]) map[ym] = { inflow: 0, outflow: 0, tatSum: 0, tatCount: 0 };
@@ -193,11 +204,11 @@ export default function Trends({ records, platform }: { records: any[]; platform
         outflow: v.outflow,
         tat: v.tatCount ? v.tatSum / v.tatCount : null,
       }));
-  }, [records, slicer]);
+  }, [yearFiltered, slicer]);
 
   const weekly = useMemo(() => {
     const map: Record<string, { inflow: number; outflow: number; n: number }> = {};
-    for (const r of records) {
+    for (const r of yearFiltered) {
       const w = r.week;
       if (!w) continue;
       if (!map[w]) map[w] = { inflow: 0, outflow: 0, n: 0 };
@@ -208,7 +219,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
     return Object.entries(map)
       .map(([week, v]) => ({ week, n: weekNum(week), inflow: v.inflow, outflow: v.outflow }))
       .sort((a, b) => a.n - b.n);
-  }, [records, slicer]);
+  }, [yearFiltered, slicer]);
 
   const peak = weekly.reduce((acc, cur) => (cur.inflow > (acc?.inflow ?? -Infinity) ? cur : acc), weekly[0]);
   const low = weekly.reduce((acc, cur) => (cur.inflow < (acc?.inflow ?? Infinity) ? cur : acc), weekly[0]);
@@ -220,6 +231,31 @@ export default function Trends({ records, platform }: { records: any[]; platform
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <Segmented value={view} onChange={setView} />
+        <div style={{ display: "inline-flex", background: "#F3F4F6", borderRadius: 8, padding: 4 }}>
+          {(["all", "2025", "2026"] as const).map((y) => {
+            const active = year === y;
+            return (
+              <button
+                key={y}
+                onClick={() => setYear(y)}
+                style={{
+                  padding: "6px 14px",
+                  border: "none",
+                  borderRadius: 6,
+                  background: active ? "#fff" : "transparent",
+                  color: active ? COLORS.text : COLORS.muted,
+                  fontWeight: active ? 600 : 500,
+                  fontSize: 13,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  boxShadow: active ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                }}
+              >
+                {y === "all" ? "All" : y}
+              </button>
+            );
+          })}
+        </div>
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {slicers.map((s) => (
