@@ -3,6 +3,7 @@ import Trends from "./Trends";
 import DailyTab from "./Daily";
 import EntryForm from "./EntryForm";
 import logo from "@/assets/netscribes-logo.png";
+import { supabase } from "@/integrations/supabase/client";
 
 declare global {
   interface Window {
