@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const COLORS = {
   primary: "#1A56DB",
@@ -192,7 +193,7 @@ export default function EntryForm({
     return { inText: 0, inImg: 0, inTot, outText: 0, outImg: 0, outTot };
   }, [inflow, outflow, platform]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSuccess("");
     if (!date) {
@@ -268,8 +269,17 @@ export default function EntryForm({
       };
     }
 
+    const table = platform === "flipkart" ? "flipkart_ugc_entries" : "myntra_ugc_entries";
+    const { error: sbError } = await supabase
+      .from(table)
+      .upsert(record, { onConflict: "date" });
+
+    if (sbError) {
+      setError("Saved to this session but Supabase write failed: " + sbError.message);
+    }
+
     setRecords((prev) => [...prev, record]);
-    setSuccess(`Entry for ${date} added to this session.`);
+    setSuccess(`Entry for ${date} saved permanently.`);
     setInflow({});
     setOutflow({});
     setTat("");
@@ -384,7 +394,7 @@ export default function EntryForm({
         )}
 
         <p style={{ fontSize: 12, fontStyle: "italic", color: COLORS.muted, marginTop: 16 }}>
-          To save permanently, add the row to the Excel file and re-run the Python script.
+          Entries submitted here are saved permanently to the database. Re-run the Python script periodically to keep the Excel in sync.
         </p>
       </form>
     </div>
