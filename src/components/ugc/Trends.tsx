@@ -229,6 +229,20 @@ export default function Trends({ records, platform }: { records: any[]; platform
       .sort((a, b) => a.n - b.n);
   }, [yearFiltered, slicerKeys]);
 
+  const monthlyAvg = useMemo(() => {
+    if (!monthly.length) return { inflow: 0, outflow: 0 };
+    const i = monthly.reduce((a, b) => a + b.inflow, 0) / monthly.length;
+    const o = monthly.reduce((a, b) => a + b.outflow, 0) / monthly.length;
+    return { inflow: i, outflow: o };
+  }, [monthly]);
+
+  const weeklyAvg = useMemo(() => {
+    if (!weekly.length) return { inflow: 0, outflow: 0 };
+    const i = weekly.reduce((a, b) => a + b.inflow, 0) / weekly.length;
+    const o = weekly.reduce((a, b) => a + b.outflow, 0) / weekly.length;
+    return { inflow: i, outflow: o };
+  }, [weekly]);
+
   const peak = weekly.reduce((acc, cur) => (cur.inflow > (acc?.inflow ?? -Infinity) ? cur : acc), weekly[0]);
   const low = weekly.reduce((acc, cur) => (cur.inflow < (acc?.inflow ?? Infinity) ? cur : acc), weekly[0]);
   const overflowCount = weekly.filter((w) => w.outflow > w.inflow).length;
@@ -279,7 +293,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
             <h3 style={heading}>Monthly Inflow vs Outflow — {combinedLabel}</h3>
             <div style={{ width: "100%", height: 320 }}>
               <ResponsiveContainer>
-                <BarChart data={monthly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                <LineChart data={monthly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
                   <CartesianGrid stroke={COLORS.border} vertical={false} />
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: COLORS.muted }} />
                   <YAxis tickFormatter={compactNum} tick={{ fontSize: 11, fill: COLORS.muted }} />
@@ -288,9 +302,21 @@ export default function Trends({ records, platform }: { records: any[]; platform
                     formatter={(v: any, name: string) => [Number(v).toLocaleString(), `${combinedLabel} ${name}`]}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="inflow" name="Inflow" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="outflow" name="Outflow" fill={COLORS.purple} radius={[4, 4, 0, 0]} />
-                </BarChart>
+                  <ReferenceLine
+                    y={monthlyAvg.inflow}
+                    stroke={COLORS.primary}
+                    strokeDasharray="4 4"
+                    label={{ value: `Avg In ${compactNum(Math.round(monthlyAvg.inflow))}`, position: "insideTopLeft", fill: COLORS.primary, fontSize: 10 }}
+                  />
+                  <ReferenceLine
+                    y={monthlyAvg.outflow}
+                    stroke={COLORS.purple}
+                    strokeDasharray="4 4"
+                    label={{ value: `Avg Out ${compactNum(Math.round(monthlyAvg.outflow))}`, position: "insideBottomLeft", fill: COLORS.purple, fontSize: 10 }}
+                  />
+                  <Line type="monotone" dataKey="inflow" name="Inflow" stroke={COLORS.primary} strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="outflow" name="Outflow" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -356,6 +382,18 @@ export default function Trends({ records, platform }: { records: any[]; platform
                     labelFormatter={(l) => l}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <ReferenceLine
+                    y={weeklyAvg.inflow}
+                    stroke={COLORS.primary}
+                    strokeDasharray="4 4"
+                    label={{ value: `Avg In ${compactNum(Math.round(weeklyAvg.inflow))}`, position: "insideTopLeft", fill: COLORS.primary, fontSize: 10 }}
+                  />
+                  <ReferenceLine
+                    y={weeklyAvg.outflow}
+                    stroke={COLORS.purple}
+                    strokeDasharray="4 4"
+                    label={{ value: `Avg Out ${compactNum(Math.round(weeklyAvg.outflow))}`, position: "insideBottomLeft", fill: COLORS.purple, fontSize: 10 }}
+                  />
                   <Line type="monotone" dataKey="inflow" name="Inflow" stroke={COLORS.primary} strokeWidth={2} dot={false} />
                   <Line
                     type="monotone"
