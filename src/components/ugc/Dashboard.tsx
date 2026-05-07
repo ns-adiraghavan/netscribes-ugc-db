@@ -9,11 +9,12 @@ import {
   Pie,
   Cell,
   Tooltip,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  Line,
 } from "recharts";
 
 declare global {
@@ -266,7 +267,7 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
 
   // Content mix
   const sumField = (field: string) =>
-    latestRows.reduce((a, r) => a + (Number(r[field]) || 0), 0);
+    records.reduce((a, r) => a + (Number(r[field]) || 0), 0);
   const mixRaw = platform === "flipkart"
     ? [
         { name: "Text", value: sumField("in_text_total") },
@@ -296,6 +297,7 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
       date: String(r.date).slice(5),
       inflow: Number(r.total_received) || 0,
       outflow: Number(r.total_delivered) || 0,
+      tat: tatToHours(r.tat) ?? 0,
     }));
   const compactNum = (v: number) =>
     v >= 1000 ? (v / 1000).toFixed(0) + "K" : String(v);
@@ -310,67 +312,58 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
 
   return (
     <div style={{ display: "grid", gap: 24 }}>
-      {allKpis.p95 > 24 && (
-        <div
-          style={{
-            background: "#FFFBEB",
-            border: "1px solid #D97706",
-            borderRadius: 8,
-            padding: "12px 16px",
-            marginBottom: 16,
-            fontSize: 13,
-            fontWeight: 500,
-            color: "#92400E",
-          }}
-        >
-          ⚠  Peak TAT is {allKpis.p95.toFixed(1)}h — above the 24h SLA threshold. Check Trends for affected periods.
-        </div>
-      )}
-
       <div>
         <h2 style={heading}>2025–Present Summary</h2>
         <KpiRow rows={records} />
       </div>
 
-      <div style={cardBox}>
-        <h3 style={cardHeading}>TAT Health Distribution — 2025–Present</h3>
-        <div style={{ display: "flex", height: 28, borderRadius: 8, overflow: "hidden", width: "100%" }}>
-          <div style={{ background: "#057A55", width: `${(under8 / total) * 100}%` }} />
-          <div style={{ background: "#D97706", width: `${(mid / total) * 100}%` }} />
-          <div style={{ background: "#E02424", width: `${(over24 / total) * 100}%` }} />
-        </div>
-        <div style={{ display: "flex", gap: 24, marginTop: 10, fontSize: 12, color: "#6B7280", flexWrap: "wrap" }}>
-          {[
-            { c: "#057A55", label: "Under 8h", n: under8 },
-            { c: "#D97706", label: "8–24h", n: mid },
-            { c: "#E02424", label: "Over 24h", n: over24 },
-          ].map((it) => (
-            <span key={it.label} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 2, background: it.c, display: "inline-block" }} />
-              {it.label} — {((it.n / total) * 100).toFixed(0)}% ({it.n} days)
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div style={cardBox}>
-        <h3 style={cardHeading}>Inflow Content Mix — Latest Year</h3>
-        <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-          <PieChart width={320} height={220}>
-            <Pie data={mixWithColor} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} cx="50%" cy="50%">
-              {mixWithColor.map((m, i) => (
-                <Cell key={i} fill={m.color} />
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+        <div style={cardBox}>
+          <h3 style={cardHeading}>Inflow Content Mix — 2025–Present</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+            <PieChart width={320} height={260}>
+              <Pie data={mixWithColor} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} cx="50%" cy="50%">
+                {mixWithColor.map((m, i) => (
+                  <Cell key={i} fill={m.color} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={tooltipStyle} />
+            </PieChart>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12, color: "#374151" }}>
+              {mixWithColor.map((m) => (
+                <div key={m.name} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ width: 10, height: 10, background: m.color, display: "inline-block" }} />
+                  {m.name} — {m.value.toLocaleString()} ({((m.value / grandTotal) * 100).toFixed(1)}%)
+                </div>
               ))}
-            </Pie>
-            <Tooltip contentStyle={tooltipStyle} />
-          </PieChart>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12, color: "#374151" }}>
-            {mixWithColor.map((m) => (
-              <div key={m.name} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 10, height: 10, background: m.color, display: "inline-block" }} />
-                {m.name} — {m.value.toLocaleString()} ({((m.value / grandTotal) * 100).toFixed(1)}%)
-              </div>
-            ))}
+            </div>
+          </div>
+        </div>
+
+        <div style={cardBox}>
+          <h3 style={cardHeading}>TAT Health Distribution</h3>
+          <div style={{ display: "flex", gap: 16, alignItems: "stretch", height: 260 }}>
+            <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", fontSize: 11, color: "#6B7280", textAlign: "right" }}>
+              <span>Over 24h</span>
+              <span>Under 8h</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", width: 40, borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ background: "#E02424", height: `${(over24 / total) * 100}%` }} />
+              <div style={{ background: "#D97706", height: `${(mid / total) * 100}%` }} />
+              <div style={{ background: "#057A55", height: `${(under8 / total) * 100}%` }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 12, color: "#374151", justifyContent: "center" }}>
+              {[
+                { c: "#E02424", label: "Over 24h", n: over24 },
+                { c: "#D97706", label: "8–24h", n: mid },
+                { c: "#057A55", label: "Under 8h", n: under8 },
+              ].map((it) => (
+                <div key={it.label} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 2, background: it.c, display: "inline-block" }} />
+                  <span>{it.label}<br /><span style={{ color: "#6B7280", fontSize: 11 }}>{((it.n / total) * 100).toFixed(0)}% ({it.n} days)</span></span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -389,15 +382,20 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <span style={{ color: "#7E3AF2" }}>●</span> Outflow
           </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: "#D97706" }}>●</span> TAT (h)
+          </span>
         </div>
-        <ResponsiveContainer width="100%" height={160}>
-          <BarChart data={last7}>
+        <ResponsiveContainer width="100%" height={200}>
+          <ComposedChart data={last7}>
             <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-            <YAxis tickFormatter={compactNum} tick={{ fontSize: 11 }} />
+            <YAxis yAxisId="left" tickFormatter={compactNum} tick={{ fontSize: 11 }} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}h`} />
             <Tooltip contentStyle={tooltipStyle} />
-            <Bar dataKey="inflow" fill="#1A56DB" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="outflow" fill="#7E3AF2" radius={[4, 4, 0, 0]} />
-          </BarChart>
+            <Bar yAxisId="left" dataKey="inflow" fill="#1A56DB" radius={[4, 4, 0, 0]} />
+            <Bar yAxisId="left" dataKey="outflow" fill="#7E3AF2" radius={[4, 4, 0, 0]} />
+            <Line yAxisId="right" type="monotone" dataKey="tat" stroke="#D97706" strokeWidth={2} dot={{ r: 3 }} />
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 
