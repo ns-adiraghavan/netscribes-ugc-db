@@ -303,15 +303,22 @@ export default function EntryForm({
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 24 }}>
           <div>
             <label style={labelStyle}>Date</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
+            <input type="date" value={date} onChange={(e) => {
+              const d = e.target.value;
+              setDate(d);
+              if (d) {
+                setWeek(`Week - ${weekOfYear(d)}`);
+                setMonth(defaultMonthLabel(d));
+              }
+            }} style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Week</label>
-            <input value={week} onChange={(e) => setWeek(e.target.value)} placeholder="Week - 21" style={inputStyle} />
+            <input value={week} readOnly placeholder="Week - 21" style={{ ...inputStyle, background: "#F9FAFB" }} />
           </div>
           <div>
             <label style={labelStyle}>Month Label</label>
-            <input value={month} onChange={(e) => setMonth(e.target.value)} placeholder="May-25" style={inputStyle} />
+            <input value={month} readOnly placeholder="May-25" style={{ ...inputStyle, background: "#F9FAFB" }} />
           </div>
           <div>
             <label style={labelStyle}>TAT</label>
