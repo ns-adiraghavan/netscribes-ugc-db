@@ -473,7 +473,7 @@ export default function Dashboard() {
     <div style={{ minHeight: "100vh", background: COLORS.bg }}>
       <Nav platform={platform} onLogout={handleLogout} tab={tab} setTab={setTab} />
       <div style={{ padding: 24, maxWidth: 1280, margin: "0 auto" }}>
-        {tab === "Overview" && <Overview records={records} />}
+        {tab === "Overview" && <Overview records={records} platform={platform} />}
         {tab === "Trends" && <Trends records={records} platform={platform} />}
         {tab === "Daily" && <DailyTab records={records} platform={platform} />}
         {tab === "Entry Form" && <EntryForm records={records} setRecords={setRecords} platform={platform} />}
