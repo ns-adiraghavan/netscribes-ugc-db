@@ -167,9 +167,21 @@ const tooltipStyle: React.CSSProperties = {
 export default function Trends({ records, platform }: { records: any[]; platform: "flipkart" | "myntra" }) {
   const slicers = platform === "flipkart" ? FLIPKART_SLICERS : MYNTRA_SLICERS;
   const [view, setView] = useState<"monthly" | "weekly">("monthly");
-  const [slicerKey, setSlicerKey] = useState<string>("total");
+  const [slicerKeys, setSlicerKeys] = useState<string[]>(["total"]);
   const [year, setYear] = useState<"all" | "2025" | "2026">("all");
-  const slicer = slicers.find((s) => s.key === slicerKey) || slicers[0];
+  const activeSlicers = slicers.filter((s) => slicerKeys.includes(s.key));
+  const combinedInflow = (r: any) => activeSlicers.reduce((sum, s) => sum + s.inflow(r), 0);
+  const combinedOutflow = (r: any) => activeSlicers.reduce((sum, s) => sum + s.outflow(r), 0);
+  const combinedLabel = activeSlicers.map((s) => s.label).join(" + ");
+  const toggleSlicer = (key: string) => {
+    setSlicerKeys((prev) => {
+      if (prev.includes(key)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((k) => k !== key);
+      }
+      return [...prev, key];
+    });
+  };
 
   const yearFiltered = useMemo(() => {
     if (year === "all") return records;
@@ -187,8 +199,8 @@ export default function Trends({ records, platform }: { records: any[]; platform
       if (!r.date) continue;
       const ym = String(r.date).slice(0, 7);
       if (!map[ym]) map[ym] = { inflow: 0, outflow: 0, tatSum: 0, tatCount: 0 };
-      map[ym].inflow += slicer.inflow(r);
-      map[ym].outflow += slicer.outflow(r);
+      map[ym].inflow += combinedInflow(r);
+      map[ym].outflow += combinedOutflow(r);
       const t = tatToHours(r.tat);
       if (t != null && !isNaN(t)) {
         map[ym].tatSum += t;
@@ -204,7 +216,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
         outflow: v.outflow,
         tat: v.tatCount ? v.tatSum / v.tatCount : null,
       }));
-  }, [yearFiltered, slicer]);
+  }, [yearFiltered, slicerKeys]);
 
   const weekly = useMemo(() => {
     const map: Record<string, { inflow: number; outflow: number; n: number }> = {};
@@ -212,14 +224,14 @@ export default function Trends({ records, platform }: { records: any[]; platform
       const w = r.week;
       if (!w) continue;
       if (!map[w]) map[w] = { inflow: 0, outflow: 0, n: 0 };
-      map[w].inflow += slicer.inflow(r);
-      map[w].outflow += slicer.outflow(r);
+      map[w].inflow += combinedInflow(r);
+      map[w].outflow += combinedOutflow(r);
       map[w].n++;
     }
     return Object.entries(map)
       .map(([week, v]) => ({ week, n: weekNum(week), inflow: v.inflow, outflow: v.outflow }))
       .sort((a, b) => a.n - b.n);
-  }, [yearFiltered, slicer]);
+  }, [yearFiltered, slicerKeys]);
 
   const peak = weekly.reduce((acc, cur) => (cur.inflow > (acc?.inflow ?? -Infinity) ? cur : acc), weekly[0]);
   const low = weekly.reduce((acc, cur) => (cur.inflow < (acc?.inflow ?? Infinity) ? cur : acc), weekly[0]);
@@ -259,7 +271,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {slicers.map((s) => (
-          <Pill key={s.key} active={s.key === slicerKey} onClick={() => setSlicerKey(s.key)}>
+          <Pill key={s.key} active={slicerKeys.includes(s.key)} onClick={() => toggleSlicer(s.key)}>
             {s.label}
           </Pill>
         ))}
@@ -268,7 +280,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
       {view === "monthly" ? (
         <>
           <div style={card}>
-            <h3 style={heading}>Monthly Inflow vs Outflow — {slicer.label}</h3>
+            <h3 style={heading}>Monthly Inflow vs Outflow — {combinedLabel}</h3>
             <div style={{ width: "100%", height: 320 }}>
               <ResponsiveContainer>
                 <BarChart data={monthly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
@@ -277,7 +289,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
                   <YAxis tickFormatter={compactNum} tick={{ fontSize: 11, fill: COLORS.muted }} />
                   <Tooltip
                     contentStyle={tooltipStyle}
-                    formatter={(v: any, name: string) => [Number(v).toLocaleString(), `${slicer.label} ${name}`]}
+                    formatter={(v: any, name: string) => [Number(v).toLocaleString(), `${combinedLabel} ${name}`]}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar dataKey="inflow" name="Inflow" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
@@ -321,7 +333,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
       ) : (
         <>
           <div style={card}>
-            <h3 style={heading}>Weekly Inflow vs Outflow — {slicer.label}</h3>
+            <h3 style={heading}>Weekly Inflow vs Outflow — {combinedLabel}</h3>
             <div style={{ fontSize: 12, color: COLORS.muted, margin: "0 0 8px" }}>Week highlights</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
               {peak && (

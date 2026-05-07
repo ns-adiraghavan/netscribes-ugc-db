@@ -151,8 +151,20 @@ const tooltipStyle: React.CSSProperties = {
 export default function Daily({ records, platform }: { records: any[]; platform: "flipkart" | "myntra" }) {
   const slicers = platform === "flipkart" ? FLIPKART_SLICERS : MYNTRA_SLICERS;
   const [range, setRange] = useState<Range>("Last 30 days");
-  const [slicerKey, setSlicerKey] = useState<string>("total");
-  const slicer = slicers.find((s) => s.key === slicerKey) || slicers[0];
+  const [slicerKeys, setSlicerKeys] = useState<string[]>(["total"]);
+  const activeSlicers = slicers.filter((s) => slicerKeys.includes(s.key));
+  const combinedInflow = (r: any) => activeSlicers.reduce((sum, s) => sum + s.inflow(r), 0);
+  const combinedOutflow = (r: any) => activeSlicers.reduce((sum, s) => sum + s.outflow(r), 0);
+  const combinedLabel = activeSlicers.map((s) => s.label).join(" + ");
+  const toggleSlicer = (key: string) => {
+    setSlicerKeys((prev) => {
+      if (prev.includes(key)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((k) => k !== key);
+      }
+      return [...prev, key];
+    });
+  };
 
   const filtered = useMemo(() => {
     const dated = records.filter((r) => r.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
@@ -186,11 +198,11 @@ export default function Daily({ records, platform }: { records: any[]; platform:
     () =>
       filtered.map((r) => ({
         date: String(r.date),
-        inflow: slicer.inflow(r),
-        outflow: slicer.outflow(r),
+        inflow: combinedInflow(r),
+        outflow: combinedOutflow(r),
         tat: tatToHours(r.tat),
       })),
-    [filtered, slicer]
+    [filtered, slicerKeys]
   );
 
   const totals = useMemo(() => {
@@ -211,7 +223,7 @@ export default function Daily({ records, platform }: { records: any[]; platform:
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {slicers.map((s) => (
-          <Pill key={s.key} active={s.key === slicerKey} onClick={() => setSlicerKey(s.key)}>
+          <Pill key={s.key} active={slicerKeys.includes(s.key)} onClick={() => toggleSlicer(s.key)}>
             {s.label}
           </Pill>
         ))}
@@ -224,7 +236,7 @@ export default function Daily({ records, platform }: { records: any[]; platform:
       </div>
 
       <div style={card}>
-        <h3 style={heading}>Daily Inflow vs Outflow — {slicer.label}</h3>
+        <h3 style={heading}>Daily Inflow vs Outflow — {combinedLabel}</h3>
         <div style={{ width: "100%", height: 300 }}>
           <ResponsiveContainer>
             <BarChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 64 }}>
