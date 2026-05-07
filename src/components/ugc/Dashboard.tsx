@@ -243,10 +243,10 @@ function Overview({ records }: { records: any[] }) {
   return (
     <div style={{ display: "grid", gap: 24 }}>
       <div>
-        <h2 style={heading}>All-time Summary</h2>
+        <h2 style={heading}>2025–Present Summary</h2>
         <KpiRow rows={records} />
       </div>
-      <div>
+      <div style={{ background: "#F3F4F6", borderRadius: 8, padding: 16 }}>
         <h2 style={heading}>Latest Year Summary</h2>
         <KpiRow rows={latestRows} />
       </div>
