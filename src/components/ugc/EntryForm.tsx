@@ -24,8 +24,6 @@ const FK_FIELDS: { key: string; label: string }[] = [
   { key: "hin_text", label: "Hindi Text" },
   { key: "eng_text_p0", label: "English Text P0" },
   { key: "hin_text_p0", label: "Hindi Text P0" },
-  { key: "eng_text_p2", label: "English Text P2" },
-  { key: "hin_text_p2", label: "Hindi Text P2" },
   { key: "eng_image", label: "English Image" },
   { key: "hin_image", label: "Hindi Image" },
   { key: "question", label: "Question" },
@@ -48,8 +46,6 @@ const FK_COLS: [string, string][] = [
   ["in_hin_text", "Inflow: Hindi Text"],
   ["in_eng_text_p0", "Inflow: English Text P0"],
   ["in_hin_text_p0", "Inflow: Hindi Text P0"],
-  ["in_eng_text_p2", "Inflow: English Text P2"],
-  ["in_hin_text_p2", "Inflow: Hindi Text P2"],
   ["in_eng_image", "Inflow: English Image"],
   ["in_hin_image", "Inflow: Hindi Image"],
   ["in_text_total", "Inflow: Text Total"],
@@ -61,8 +57,6 @@ const FK_COLS: [string, string][] = [
   ["out_hin_text", "Outflow: Hindi Text"],
   ["out_eng_text_p0", "Outflow: English Text P0"],
   ["out_hin_text_p0", "Outflow: Hindi Text P0"],
-  ["out_eng_text_p2", "Outflow: English Text P2"],
-  ["out_hin_text_p2", "Outflow: Hindi Text P2"],
   ["out_eng_image", "Outflow: English Image"],
   ["out_hin_image", "Outflow: Hindi Image"],
   ["out_text_total", "Outflow: Text Total"],
@@ -178,12 +172,12 @@ export default function EntryForm({
     if (platform === "flipkart") {
       const inText =
         num(inflow.eng_text) + num(inflow.hin_text) + num(inflow.eng_text_p0) +
-        num(inflow.hin_text_p0) + num(inflow.eng_text_p2) + num(inflow.hin_text_p2);
+        num(inflow.hin_text_p0);
       const inImg = num(inflow.eng_image) + num(inflow.hin_image);
       const inTot = inText + inImg + num(inflow.question) + num(inflow.answer) + num(inflow.video);
       const outText =
         num(outflow.eng_text) + num(outflow.hin_text) + num(outflow.eng_text_p0) +
-        num(outflow.hin_text_p0) + num(outflow.eng_text_p2) + num(outflow.hin_text_p2);
+        num(outflow.hin_text_p0);
       const outImg = num(outflow.eng_image) + num(outflow.hin_image);
       const outTot = outText + outImg + num(outflow.question) + num(outflow.answer) + num(outflow.video);
       return { inText, inImg, inTot, outText, outImg, outTot };
@@ -221,8 +215,6 @@ export default function EntryForm({
         in_hin_text: numOrNull(inflow.hin_text),
         in_eng_text_p0: numOrNull(inflow.eng_text_p0),
         in_hin_text_p0: numOrNull(inflow.hin_text_p0),
-        in_eng_text_p2: numOrNull(inflow.eng_text_p2),
-        in_hin_text_p2: numOrNull(inflow.hin_text_p2),
         in_eng_image: numOrNull(inflow.eng_image),
         in_hin_image: numOrNull(inflow.hin_image),
         in_text_total: totals.inText,
@@ -234,8 +226,6 @@ export default function EntryForm({
         out_hin_text: numOrNull(outflow.hin_text),
         out_eng_text_p0: numOrNull(outflow.eng_text_p0),
         out_hin_text_p0: numOrNull(outflow.hin_text_p0),
-        out_eng_text_p2: numOrNull(outflow.eng_text_p2),
-        out_hin_text_p2: numOrNull(outflow.hin_text_p2),
         out_eng_image: numOrNull(outflow.eng_image),
         out_hin_image: numOrNull(outflow.hin_image),
         out_text_total: totals.outText,
