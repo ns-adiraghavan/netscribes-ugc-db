@@ -204,6 +204,7 @@ export default function Daily({ records, platform }: { records: any[]; platform:
         date: String(r.date),
         inflow: combinedInflow(r),
         outflow: combinedOutflow(r),
+        net: combinedInflow(r) - combinedOutflow(r),
         tat: tatToHours(r.tat),
       })),
     [filtered, slicerKeys]
@@ -214,7 +215,8 @@ export default function Daily({ records, platform }: { records: any[]; platform:
     const outflow = data.reduce((a, d) => a + d.outflow, 0);
     const tats = data.map((d) => d.tat).filter((v): v is number => v != null && !isNaN(v));
     const avg = tats.length ? tats.reduce((a, b) => a + b, 0) / tats.length : 0;
-    return { inflow, outflow, avg };
+    const net = inflow - outflow;
+    return { inflow, outflow, avg, net };
   }, [data]);
 
   const interval = data.length > 30 ? 4 : 0;
