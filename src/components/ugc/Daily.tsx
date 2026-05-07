@@ -156,6 +156,8 @@ export default function Daily({ records, platform }: { records: any[]; platform:
         if (prev.length === 1) return prev;
         return prev.filter((k) => k !== key);
       }
+      if (key === "total") return ["total"];
+      if (prev.includes("total")) return [key];
       return [...prev, key];
     });
   };
