@@ -3,6 +3,7 @@ import Trends from "./Trends";
 import DailyTab from "./Daily";
 import EntryForm from "./EntryForm";
 import logo from "@/assets/netscribes-logo.png";
+import { supabase } from "@/integrations/supabase/client";
 
 declare global {
   interface Window {
@@ -280,7 +281,28 @@ export default function Dashboard() {
       const pako = await loadPako();
       const text = pako.inflate(new Uint8Array(buf), { to: "string" });
       const data = JSON.parse(text);
-      setRecords(Array.isArray(data) ? data : data.records || data.data || []);
+      const table = c.platform === "flipkart" ? "flipkart_ugc_entries" : "myntra_ugc_entries";
+      const { data: manualRows, error: sbError } = await supabase
+        .from(table)
+        .select("*")
+        .order("date", { ascending: true });
+
+      if (sbError) console.warn("Supabase fetch error:", sbError.message);
+
+      const allRows = [
+        ...(Array.isArray(data) ? data : data.records || data.data || []),
+        ...(manualRows || []),
+      ];
+
+      // Deduplicate by date — Supabase row wins over .gz row for same date
+      const byDate = new Map<string, any>();
+      for (const r of allRows) {
+        const d = r.date ? String(r.date).slice(0, 10) : null;
+        if (d) byDate.set(d, { ...r, date: d });
+      }
+      const merged = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+      setRecords(merged);
       setPlatform(c.platform);
       setTab("Overview");
     } catch (e: any) {
