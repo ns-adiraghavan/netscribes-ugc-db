@@ -292,15 +292,21 @@ export default function Daily({ records, platform }: { records: any[]; platform:
         ))}
       </div>
 
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
+        <StatCard label="Period Inflow" value={totals.inflow.toLocaleString()} />
+        <StatCard label="Period Outflow" value={totals.outflow.toLocaleString()} />
+        <StatCard label="Avg TAT" value={`${totals.avg.toFixed(1)}h`} />
+      </div>
+
       <div style={card}>
         <h3 style={heading}>Daily Inflow vs Outflow — {slicer.label}</h3>
         <div style={{ width: "100%", height: 300 }}>
           <ResponsiveContainer>
-            <BarChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 40 }}>
+            <BarChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 64 }}>
               <CartesianGrid stroke={COLORS.border} vertical={false} />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 10, fill: COLORS.muted }}
+                tick={{ fontSize: 9, fill: COLORS.muted }}
                 angle={-45}
                 textAnchor="end"
                 height={60}
@@ -341,12 +347,6 @@ export default function Daily({ records, platform }: { records: any[]; platform:
             </LineChart>
           </ResponsiveContainer>
         </div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-        <StatCard label="Period Inflow" value={totals.inflow.toLocaleString()} />
-        <StatCard label="Period Outflow" value={totals.outflow.toLocaleString()} />
-        <StatCard label="Avg TAT" value={`${totals.avg.toFixed(1)}h`} />
       </div>
     </div>
   );
