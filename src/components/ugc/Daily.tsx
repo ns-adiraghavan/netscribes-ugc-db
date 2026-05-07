@@ -299,6 +299,31 @@ export default function Daily({ records, platform }: { records: any[]; platform:
       </div>
 
       <div style={card}>
+        <h3 style={heading}>Daily Net Volume (Inflow − Outflow) — {combinedLabel}</h3>
+        <div style={{ width: "100%", height: 200 }}>
+          <ResponsiveContainer>
+            <LineChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+              <CartesianGrid stroke={COLORS.border} vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: COLORS.muted }} interval={interval} hide={data.length > 60} />
+              <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} tickFormatter={(v) => v.toLocaleString()} />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                formatter={(v: any) => [Number(v).toLocaleString(), "Net"]}
+              />
+              <ReferenceLine y={0} stroke="#9CA3AF" strokeDasharray="2 2" />
+              <ReferenceLine
+                y={totals.net / (data.length || 1)}
+                stroke={COLORS.text}
+                strokeDasharray="4 4"
+                label={{ value: `Avg Net ${Math.round(totals.net / (data.length || 1)).toLocaleString()}`, position: "insideTopLeft", fill: COLORS.text, fontSize: 10 }}
+              />
+              <Line type="monotone" dataKey="net" name="Net" stroke={COLORS.text} strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div style={card}>
         <h3 style={heading}>Daily TAT</h3>
         <div style={{ width: "100%", height: 140 }}>
           <ResponsiveContainer>
