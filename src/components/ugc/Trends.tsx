@@ -288,7 +288,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
           </div>
 
           <div style={card}>
-            <h3 style={heading}>Monthly Avg TAT (hours)</h3>
+            <h3 style={heading}>Monthly Avg TAT (hours) — all content types</h3>
             <div style={{ width: "100%", height: 240 }}>
               <ResponsiveContainer>
                 <LineChart data={monthly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
@@ -322,6 +322,16 @@ export default function Trends({ records, platform }: { records: any[]; platform
         <>
           <div style={card}>
             <h3 style={heading}>Weekly Inflow vs Outflow — {slicer.label}</h3>
+            <div style={{ fontSize: 12, color: COLORS.muted, margin: "0 0 8px" }}>Week highlights</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+              {peak && (
+                <StatPill label="Peak week" value={`${peak.week} • ${peak.inflow.toLocaleString()}`} color={COLORS.primary} />
+              )}
+              {low && (
+                <StatPill label="Lowest week" value={`${low.week} • ${low.inflow.toLocaleString()}`} color={COLORS.muted} />
+              )}
+              <StatPill label="Weeks outflow > inflow" value={String(overflowCount)} color={COLORS.danger} />
+            </div>
             <div style={{ width: "100%", height: 320 }}>
               <ResponsiveContainer>
                 <LineChart data={weekly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
@@ -350,16 +360,6 @@ export default function Trends({ records, platform }: { records: any[]; platform
                   />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16 }}>
-              {peak && (
-                <StatPill label="Peak week" value={`${peak.week} • ${peak.inflow.toLocaleString()}`} color={COLORS.primary} />
-              )}
-              {low && (
-                <StatPill label="Lowest week" value={`${low.week} • ${low.inflow.toLocaleString()}`} color={COLORS.muted} />
-              )}
-              <StatPill label="Weeks outflow > inflow" value={String(overflowCount)} color={COLORS.danger} />
             </div>
           </div>
         </>
