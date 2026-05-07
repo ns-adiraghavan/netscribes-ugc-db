@@ -4,6 +4,17 @@ import DailyTab from "./Daily";
 import EntryForm from "./EntryForm";
 import logo from "@/assets/netscribes-logo.png";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+} from "recharts";
 
 declare global {
   interface Window {
@@ -108,7 +119,7 @@ function KpiRow({ rows }: { rows: any[] }) {
       <KpiCard label="Total Inflow" value={fmtNum(k.inflow)} />
       <KpiCard label="Total Outflow" value={fmtNum(k.outflow)} />
       <KpiCard label="Avg TAT" value={`${k.avg.toFixed(1)}h`} />
-      <KpiCard label="P95 TAT" value={`${k.p95.toFixed(1)}h`} valueColor={p95Color} />
+      <KpiCard label="Peak TAT" value={`${k.p95.toFixed(1)}h`} valueColor={p95Color} />
       <KpiCard label="Days TAT > 24h" value={String(k.over24)} valueColor={over24Color} />
     </div>
   );
@@ -216,7 +227,7 @@ function getStatus(r: any): string {
   return "unknown";
 }
 
-function Overview({ records }: { records: any[] }) {
+function Overview({ records, platform }: { records: any[]; platform: Platform }) {
   const { latestRows, minDate, maxDate, count } = useMemo(() => {
     const dates = records.map((r) => r.date).filter(Boolean).sort();
     const years = records.map((r) => Number(r.year)).filter((y) => !isNaN(y));
@@ -231,6 +242,7 @@ function Overview({ records }: { records: any[] }) {
   }, [records]);
 
   const heading: React.CSSProperties = { fontSize: 18, color: "#111827", fontWeight: 600, margin: "0 0 12px" };
+  const cardHeading: React.CSSProperties = { fontSize: 16, color: "#111827", fontWeight: 600, margin: "0 0 12px" };
 
   if (!records || records.length === 0) {
     return (
@@ -241,16 +253,154 @@ function Overview({ records }: { records: any[] }) {
     );
   }
 
+  const allKpis = computeKpis(records);
+
+  // TAT health buckets
+  const tatValues = records
+    .map((r) => tatToHours(r.tat))
+    .filter((v): v is number => v != null && !isNaN(v));
+  const under8 = tatValues.filter((v) => v < 8).length;
+  const mid = tatValues.filter((v) => v >= 8 && v <= 24).length;
+  const over24 = tatValues.filter((v) => v > 24).length;
+  const total = tatValues.length || 1;
+
+  // Content mix
+  const sumField = (field: string) =>
+    latestRows.reduce((a, r) => a + (Number(r[field]) || 0), 0);
+  const mixRaw = platform === "flipkart"
+    ? [
+        { name: "Text", value: sumField("in_text_total") },
+        { name: "Image", value: sumField("in_image_total") },
+        { name: "Question", value: sumField("in_question") },
+        { name: "Answer", value: sumField("in_answer") },
+        { name: "Video", value: sumField("in_video") },
+      ]
+    : [
+        { name: "Text", value: sumField("in_text_total") },
+        { name: "Image", value: sumField("in_image_total") },
+        { name: "Video", value: sumField("in_video") },
+      ];
+  const pieColors = ["#1A56DB", "#7E3AF2", "#057A55", "#D97706", "#E02424"];
+  const mixWithColor = mixRaw
+    .map((m, i) => ({ ...m, color: pieColors[i] }))
+    .filter((m) => m.value > 0);
+  const grandTotal = mixWithColor.reduce((a, m) => a + m.value, 0) || 1;
+
+  // Last 7 days
+  const last7 = [...records]
+    .filter((r) => r.date)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    .slice(0, 7)
+    .reverse()
+    .map((r) => ({
+      date: String(r.date).slice(5),
+      inflow: Number(r.total_received) || 0,
+      outflow: Number(r.total_delivered) || 0,
+    }));
+  const compactNum = (v: number) =>
+    v >= 1000 ? (v / 1000).toFixed(0) + "K" : String(v);
+  const tooltipStyle = {
+    background: "#fff",
+    border: "1px solid #E5E7EB",
+    borderRadius: 8,
+    fontSize: 12,
+  };
+
+  const cardBox: React.CSSProperties = card;
+
   return (
     <div style={{ display: "grid", gap: 24 }}>
+      {allKpis.p95 > 24 && (
+        <div
+          style={{
+            background: "#FFFBEB",
+            border: "1px solid #D97706",
+            borderRadius: 8,
+            padding: "12px 16px",
+            marginBottom: 16,
+            fontSize: 13,
+            fontWeight: 500,
+            color: "#92400E",
+          }}
+        >
+          ⚠  Peak TAT is {allKpis.p95.toFixed(1)}h — above the 24h SLA threshold. Check Trends for affected periods.
+        </div>
+      )}
+
       <div>
         <h2 style={heading}>2025–Present Summary</h2>
         <KpiRow rows={records} />
       </div>
+
+      <div style={cardBox}>
+        <h3 style={cardHeading}>TAT Health Distribution — 2025–Present</h3>
+        <div style={{ display: "flex", height: 28, borderRadius: 8, overflow: "hidden", width: "100%" }}>
+          <div style={{ background: "#057A55", width: `${(under8 / total) * 100}%` }} />
+          <div style={{ background: "#D97706", width: `${(mid / total) * 100}%` }} />
+          <div style={{ background: "#E02424", width: `${(over24 / total) * 100}%` }} />
+        </div>
+        <div style={{ display: "flex", gap: 24, marginTop: 10, fontSize: 12, color: "#6B7280", flexWrap: "wrap" }}>
+          {[
+            { c: "#057A55", label: "Under 8h", n: under8 },
+            { c: "#D97706", label: "8–24h", n: mid },
+            { c: "#E02424", label: "Over 24h", n: over24 },
+          ].map((it) => (
+            <span key={it.label} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: it.c, display: "inline-block" }} />
+              {it.label} — {((it.n / total) * 100).toFixed(0)}% ({it.n} days)
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div style={cardBox}>
+        <h3 style={cardHeading}>Inflow Content Mix — Latest Year</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+          <PieChart width={320} height={220}>
+            <Pie data={mixWithColor} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} cx="50%" cy="50%">
+              {mixWithColor.map((m, i) => (
+                <Cell key={i} fill={m.color} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={tooltipStyle} />
+          </PieChart>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12, color: "#374151" }}>
+            {mixWithColor.map((m) => (
+              <div key={m.name} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 10, height: 10, background: m.color, display: "inline-block" }} />
+                {m.name} — {m.value.toLocaleString()} ({((m.value / grandTotal) * 100).toFixed(1)}%)
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div style={{ background: "#F3F4F6", borderRadius: 8, padding: 16 }}>
         <h2 style={heading}>Latest Year Summary</h2>
         <KpiRow rows={latestRows} />
       </div>
+
+      <div style={cardBox}>
+        <h3 style={cardHeading}>Last 7 Days</h3>
+        <div style={{ display: "flex", gap: 16, fontSize: 12, marginBottom: 8, color: "#374151" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: "#1A56DB" }}>●</span> Inflow
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: "#7E3AF2" }}>●</span> Outflow
+          </span>
+        </div>
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={last7}>
+            <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+            <YAxis tickFormatter={compactNum} tick={{ fontSize: 11 }} />
+            <Tooltip contentStyle={tooltipStyle} />
+            <Bar dataKey="inflow" fill="#1A56DB" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="outflow" fill="#7E3AF2" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
       <div style={{ fontSize: 12, fontStyle: "italic", color: "#6B7280" }}>
         Data from {minDate} to {maxDate}. {count} days on record.
       </div>
@@ -323,7 +473,7 @@ export default function Dashboard() {
     <div style={{ minHeight: "100vh", background: COLORS.bg }}>
       <Nav platform={platform} onLogout={handleLogout} tab={tab} setTab={setTab} />
       <div style={{ padding: 24, maxWidth: 1280, margin: "0 auto" }}>
-        {tab === "Overview" && <Overview records={records} />}
+        {tab === "Overview" && <Overview records={records} platform={platform} />}
         {tab === "Trends" && <Trends records={records} platform={platform} />}
         {tab === "Daily" && <DailyTab records={records} platform={platform} />}
         {tab === "Entry Form" && <EntryForm records={records} setRecords={setRecords} platform={platform} />}
