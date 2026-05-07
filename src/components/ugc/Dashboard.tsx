@@ -4,6 +4,17 @@ import DailyTab from "./Daily";
 import EntryForm from "./EntryForm";
 import logo from "@/assets/netscribes-logo.png";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+} from "recharts";
 
 declare global {
   interface Window {
@@ -108,7 +119,7 @@ function KpiRow({ rows }: { rows: any[] }) {
       <KpiCard label="Total Inflow" value={fmtNum(k.inflow)} />
       <KpiCard label="Total Outflow" value={fmtNum(k.outflow)} />
       <KpiCard label="Avg TAT" value={`${k.avg.toFixed(1)}h`} />
-      <KpiCard label="P95 TAT" value={`${k.p95.toFixed(1)}h`} valueColor={p95Color} />
+      <KpiCard label="Peak TAT" value={`${k.p95.toFixed(1)}h`} valueColor={p95Color} />
       <KpiCard label="Days TAT > 24h" value={String(k.over24)} valueColor={over24Color} />
     </div>
   );
