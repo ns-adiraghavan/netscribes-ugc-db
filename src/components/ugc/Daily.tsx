@@ -273,6 +273,8 @@ export default function Daily({ records, platform }: { records: any[]; platform:
           </ResponsiveContainer>
         </div>
       </div>
+
+      <DetailTable filtered={filtered} platform={platform} heading={heading} />
     </div>
   );
 }
@@ -282,6 +284,111 @@ function StatCard({ label, value }: { label: string; value: string }) {
     <div style={card}>
       <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 8 }}>{label}</div>
       <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>{value}</div>
+    </div>
+  );
+}
+
+type Col = { key: string; label: string; get: (r: any) => any; bold?: boolean };
+
+const FK_COLS: Col[] = [
+  { key: "date", label: "Date", get: (r) => String(r.date) },
+  { key: "in_text", label: "Inflow Text", get: (r) => num(r.in_text_total) },
+  { key: "in_image", label: "Inflow Image", get: (r) => num(r.in_image_total) },
+  { key: "in_q", label: "Inflow Q", get: (r) => num(r.in_question) },
+  { key: "in_a", label: "Inflow A", get: (r) => num(r.in_answer) },
+  { key: "in_video", label: "Inflow Video", get: (r) => num(r.in_video) },
+  { key: "total_in", label: "Total Received", get: (r) => num(r.total_received), bold: true },
+  { key: "out_text", label: "Outflow Text", get: (r) => num(r.out_text_total) },
+  { key: "out_image", label: "Outflow Image", get: (r) => num(r.out_image_total) },
+  { key: "out_q", label: "Outflow Q", get: (r) => num(r.out_question) },
+  { key: "out_a", label: "Outflow A", get: (r) => num(r.out_answer) },
+  { key: "out_video", label: "Outflow Video", get: (r) => num(r.out_video) },
+  { key: "total_out", label: "Total Delivered", get: (r) => num(r.total_delivered), bold: true },
+];
+
+const MY_COLS: Col[] = [
+  { key: "date", label: "Date", get: (r) => String(r.date) },
+  { key: "in_text", label: "Inflow Text", get: (r) => num(r.in_text_total) },
+  { key: "in_image", label: "Inflow Image", get: (r) => num(r.in_image_total) },
+  { key: "in_video", label: "Inflow Video", get: (r) => num(r.in_video) },
+  { key: "total_in", label: "Total Received", get: (r) => num(r.total_received), bold: true },
+  { key: "out_text", label: "Outflow Text", get: (r) => num(r.out_text_total) },
+  { key: "out_image", label: "Outflow Image", get: (r) => num(r.out_image_total) },
+  { key: "out_video", label: "Outflow Video", get: (r) => num(r.out_video) },
+  { key: "total_out", label: "Total Delivered", get: (r) => num(r.total_delivered), bold: true },
+];
+
+function DetailTable({
+  filtered,
+  platform,
+  heading,
+}: {
+  filtered: any[];
+  platform: "flipkart" | "myntra";
+  heading: React.CSSProperties;
+}) {
+  const cols = platform === "flipkart" ? FK_COLS : MY_COLS;
+  const rows = [...filtered].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+  const th: React.CSSProperties = {
+    fontSize: 11,
+    textTransform: "uppercase",
+    color: COLORS.muted,
+    textAlign: "left",
+    fontWeight: 600,
+    padding: "8px 12px",
+    borderBottom: `1px solid ${COLORS.border}`,
+    whiteSpace: "nowrap",
+  };
+  const td: React.CSSProperties = {
+    fontSize: 12,
+    color: COLORS.text,
+    padding: "8px 12px",
+    borderBottom: `1px solid ${COLORS.border}`,
+    whiteSpace: "nowrap",
+  };
+
+  return (
+    <div style={card}>
+      <h3 style={heading}>Day-level Detail</h3>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "inherit" }}>
+          <thead>
+            <tr>
+              {cols.map((c) => (
+                <th key={c.key} style={th}>
+                  {c.label}
+                </th>
+              ))}
+              <th style={th}>TAT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const bg = i % 2 === 0 ? "#fff" : "#F9FAFB";
+              const tatHrs = tatToHours(r.tat);
+              const tatColor =
+                tatHrs == null ? COLORS.muted : tatHrs < 24 ? "#057A55" : COLORS.danger;
+              return (
+                <tr key={i} style={{ background: bg }}>
+                  {cols.map((c) => {
+                    const v = c.get(r);
+                    const display = c.key === "date" ? v : Number(v).toLocaleString();
+                    return (
+                      <td key={c.key} style={{ ...td, fontWeight: c.bold ? 600 : 400 }}>
+                        {display}
+                      </td>
+                    );
+                  })}
+                  <td style={{ ...td, color: tatColor, fontWeight: 500 }}>
+                    {r.tat ?? "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
