@@ -1,7 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  BarChart,
-  Bar,
   LineChart,
   Line,
   XAxis,
@@ -78,7 +76,7 @@ const MYNTRA_SLICERS: Slicer[] = [
   { key: "video", label: "Video", inflow: (r) => num(r.in_video), outflow: (r) => num(r.out_video) },
 ];
 
-const RANGES = ["Last 30 days", "Last 90 days", "This year", "Last year", "All time"] as const;
+const RANGES = ["Last 30 days", "Last 90 days", "This year", "Last year", "All time", "Custom"] as const;
 type Range = (typeof RANGES)[number];
 
 function Pill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -146,6 +144,8 @@ export default function Daily({ records, platform }: { records: any[]; platform:
   const slicers = platform === "flipkart" ? FLIPKART_SLICERS : MYNTRA_SLICERS;
   const [range, setRange] = useState<Range>("Last 30 days");
   const [slicerKeys, setSlicerKeys] = useState<string[]>(["total"]);
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
   const activeSlicers = slicers.filter((s) => slicerKeys.includes(s.key));
   const combinedInflow = (r: any) => activeSlicers.reduce((sum, s) => sum + s.inflow(r), 0);
   const combinedOutflow = (r: any) => activeSlicers.reduce((sum, s) => sum + s.outflow(r), 0);
@@ -180,6 +180,14 @@ export default function Daily({ records, platform }: { records: any[]; platform:
       const ly = maxDate.getFullYear() - 1;
       cutoff = new Date(ly, 0, 1);
       ceiling = new Date(ly, 11, 31);
+    } else if (range === "Custom") {
+      if (!customFrom && !customTo) return dated;
+      const from = customFrom || "0000-01-01";
+      const to = customTo || "9999-12-31";
+      return dated.filter((r) => {
+        const d = String(r.date);
+        return d >= from && d <= to;
+      });
     }
     if (!cutoff) return dated;
     const c = cutoff.toISOString().slice(0, 10);
@@ -188,7 +196,7 @@ export default function Daily({ records, platform }: { records: any[]; platform:
       const d = String(r.date);
       return d >= c && (!cap || d <= cap);
     });
-  }, [records, range]);
+  }, [records, range, customFrom, customTo]);
 
   const data = useMemo(
     () =>
@@ -216,6 +224,24 @@ export default function Daily({ records, platform }: { records: any[]; platform:
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
         <Segmented value={range} options={RANGES} onChange={setRange} />
+        {range === "Custom" && (
+          <div style={{ display: "inline-flex", gap: 8, alignItems: "center", fontSize: 12, color: COLORS.muted }}>
+            From
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              style={{ fontSize: 12, padding: "4px 8px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontFamily: "inherit" }}
+            />
+            To
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+              style={{ fontSize: 12, padding: "4px 8px", border: `1px solid ${COLORS.border}`, borderRadius: 6, fontFamily: "inherit" }}
+            />
+          </div>
+        )}
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {slicers.map((s) => (
@@ -235,7 +261,7 @@ export default function Daily({ records, platform }: { records: any[]; platform:
         <h3 style={heading}>Daily Inflow vs Outflow — {combinedLabel}</h3>
         <div style={{ width: "100%", height: 300 }}>
           <ResponsiveContainer>
-            <BarChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 64 }}>
+            <LineChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 64 }}>
               <CartesianGrid stroke={COLORS.border} vertical={false} />
               <XAxis
                 dataKey="date"
@@ -251,9 +277,21 @@ export default function Daily({ records, platform }: { records: any[]; platform:
                 formatter={(v: any, name: string) => [Number(v).toLocaleString(), name]}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="inflow" name="Inflow" fill={COLORS.primary} />
-              <Bar dataKey="outflow" name="Outflow" fill={COLORS.purple} />
-            </BarChart>
+              <ReferenceLine
+                y={totals.inflow / (data.length || 1)}
+                stroke={COLORS.primary}
+                strokeDasharray="4 4"
+                label={{ value: `Avg In ${Math.round(totals.inflow / (data.length || 1)).toLocaleString()}`, position: "insideTopLeft", fill: COLORS.primary, fontSize: 10 }}
+              />
+              <ReferenceLine
+                y={totals.outflow / (data.length || 1)}
+                stroke={COLORS.purple}
+                strokeDasharray="4 4"
+                label={{ value: `Avg Out ${Math.round(totals.outflow / (data.length || 1)).toLocaleString()}`, position: "insideBottomLeft", fill: COLORS.purple, fontSize: 10 }}
+              />
+              <Line type="monotone" dataKey="inflow" name="Inflow" stroke={COLORS.primary} strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="outflow" name="Outflow" stroke={COLORS.purple} strokeWidth={2} dot={false} />
+            </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
