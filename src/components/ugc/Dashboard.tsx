@@ -16,6 +16,8 @@ import {
   ComposedChart,
   Bar,
   Line,
+  LineChart,
+  CartesianGrid,
 } from "recharts";
 
 declare global {
@@ -115,15 +117,14 @@ function KpiCard({ label, value, valueColor }: { label: string; value: string; v
 
 function KpiRow({ rows }: { rows: any[] }) {
   const k = computeKpis(rows);
-  const p95Color = k.p95 > 24 ? COLORS.danger : "#111827";
-  const over24Color = k.over24 > 20 ? COLORS.danger : k.over24 <= 10 ? COLORS.success : COLORS.amber;
+  const over24Pct = k.tatCount ? (k.over24 / k.tatCount) * 100 : 0;
+  const over24Color = over24Pct > 20 ? COLORS.danger : over24Pct <= 5 ? COLORS.success : COLORS.amber;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
       <KpiCard label="Total Inflow" value={fmtNum(k.inflow)} />
       <KpiCard label="Total Outflow" value={fmtNum(k.outflow)} />
       <KpiCard label="Avg TAT" value={`${k.avg.toFixed(1)}h`} />
-      <KpiCard label="Peak TAT" value={`${k.p95.toFixed(1)}h`} valueColor={p95Color} />
-      <KpiCard label="Days TAT > 24h" value={String(k.over24)} valueColor={over24Color} />
+      <KpiCard label="% Days TAT > 24h" value={`${over24Pct.toFixed(1)}%`} valueColor={over24Color} />
     </div>
   );
 }
@@ -505,6 +506,28 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
 
   const cardBox: React.CSSProperties = card;
 
+  // Monthly aggregations for trend charts
+  const monthlyMap = new Map<string, { tats: number[]; over24: number; total: number }>();
+  for (const r of records) {
+    if (!r.date) continue;
+    const ym = String(r.date).slice(0, 7);
+    const t = tatToHours(r.tat);
+    const m = monthlyMap.get(ym) || { tats: [], over24: 0, total: 0 };
+    if (t != null && !isNaN(t)) {
+      m.tats.push(t);
+      m.total += 1;
+      if (t > 24) m.over24 += 1;
+    }
+    monthlyMap.set(ym, m);
+  }
+  const monthlyTrend = Array.from(monthlyMap.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([ym, m]) => ({
+      month: ym,
+      avg: m.tats.length ? m.tats.reduce((a, b) => a + b, 0) / m.tats.length : null,
+      over24Pct: m.total ? (m.over24 / m.total) * 100 : 0,
+    }));
+
   return (
     <div style={{ display: "grid", gap: 24 }}>
       <div>
@@ -560,6 +583,33 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
               ))}
             </div>
           </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div style={cardBox}>
+          <h3 style={cardHeading}>Avg TAT Trend (monthly)</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={monthlyTrend} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+              <CartesianGrid stroke="#E5E7EB" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#6B7280" }} />
+              <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} tickFormatter={(v) => `${v}h`} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [v == null ? "—" : `${Number(v).toFixed(1)}h`, "Avg TAT"]} />
+              <Line type="monotone" dataKey="avg" stroke="#1E3A8A" strokeWidth={2} dot={false} connectNulls />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div style={cardBox}>
+          <h3 style={cardHeading}>% Days TAT &gt; 24h (monthly)</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={monthlyTrend} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+              <CartesianGrid stroke="#E5E7EB" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#6B7280" }} />
+              <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} tickFormatter={(v) => `${v}%`} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [`${Number(v).toFixed(1)}%`, "Days > 24h"]} />
+              <Line type="monotone" dataKey="over24Pct" stroke="#E02424" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
