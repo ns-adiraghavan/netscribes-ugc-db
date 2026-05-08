@@ -143,8 +143,13 @@ const DATA_PREFIX = ""; // files are in /public/ → served from root in Vite
 
 // Replace NaN tokens (invalid JSON from Python) with null before parsing
 function safeParseJSON(text: string): any[] {
-  const cleaned = text.replace(/:\s*NaN/g, ": null");
-  return JSON.parse(cleaned);
+  // Avoid allocating a second multi-hundred-MB string when not needed.
+  // Python writes `NaN` as a bare token which JSON.parse rejects — only
+  // run the replace if we actually find one.
+  if (text.indexOf("NaN") !== -1) {
+    text = text.replace(/:\s*NaN\b/g, ": null");
+  }
+  return JSON.parse(text);
 }
 
 // ── Session-level in-memory cache (survives tab switches, not page reload) ──
