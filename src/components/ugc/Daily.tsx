@@ -346,11 +346,11 @@ export default function Daily({
               />
               <ReferenceLine
                 y={24}
-                stroke="#9CA3AF"
+                stroke="#1E3A8A"
                 strokeDasharray="4 4"
-                label={{ value: "24h SLA", position: "right", fill: COLORS.muted, fontSize: 11 }}
+                label={{ value: "24h SLA", position: "right", fill: "#1E3A8A", fontSize: 11 }}
               />
-              <Line type="monotone" dataKey="tat" stroke={COLORS.danger} strokeWidth={2} dot={false} connectNulls />
+              <Line type="monotone" dataKey="tat" stroke="#1E3A8A" strokeWidth={2} dot={false} connectNulls />
             </LineChart>
           </ResponsiveContainer>
         </div>
