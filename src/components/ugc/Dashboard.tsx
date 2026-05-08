@@ -506,6 +506,28 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
 
   const cardBox: React.CSSProperties = card;
 
+  // Monthly aggregations for trend charts
+  const monthlyMap = new Map<string, { tats: number[]; over24: number; total: number }>();
+  for (const r of records) {
+    if (!r.date) continue;
+    const ym = String(r.date).slice(0, 7);
+    const t = tatToHours(r.tat);
+    const m = monthlyMap.get(ym) || { tats: [], over24: 0, total: 0 };
+    if (t != null && !isNaN(t)) {
+      m.tats.push(t);
+      m.total += 1;
+      if (t > 24) m.over24 += 1;
+    }
+    monthlyMap.set(ym, m);
+  }
+  const monthlyTrend = Array.from(monthlyMap.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([ym, m]) => ({
+      month: ym,
+      avg: m.tats.length ? m.tats.reduce((a, b) => a + b, 0) / m.tats.length : null,
+      over24Pct: m.total ? (m.over24 / m.total) * 100 : 0,
+    }));
+
   return (
     <div style={{ display: "grid", gap: 24 }}>
       <div>
