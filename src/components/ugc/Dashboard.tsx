@@ -219,12 +219,12 @@ const MODULES: {
     description: "Track inflow, outflow, TAT and content mix for Flipkart UGC moderation.",
     email: "flipkart@netscribes.com",
     tags: ["INFLOW", "TAT", "CONTENT MIX"],
-    accent: "#60A5FA",
-    bg: "linear-gradient(135deg, rgba(30,58,138,0.45), rgba(15,23,42,0.85))",
-    border: "rgba(96,165,250,0.35)",
-    iconBg: "rgba(96,165,250,0.18)",
-    tagBg: "rgba(96,165,250,0.18)",
-    tagColor: "#93C5FD",
+    accent: "#1A56DB",
+    bg: "linear-gradient(135deg, #EFF6FF 0%, #FFFFFF 100%)",
+    border: "#DBEAFE",
+    iconBg: "#DBEAFE",
+    tagBg: "#DBEAFE",
+    tagColor: "#1A56DB",
     icon: "📊",
   },
   {
@@ -233,12 +233,12 @@ const MODULES: {
     description: "Monitor Myntra UGC volumes, turnaround time and daily moderation health.",
     email: "myntra@netscribes.com",
     tags: ["INFLOW", "TAT", "DAILY"],
-    accent: "#F472B6",
-    bg: "linear-gradient(135deg, rgba(157,23,77,0.45), rgba(15,23,42,0.85))",
-    border: "rgba(244,114,182,0.35)",
-    iconBg: "rgba(244,114,182,0.18)",
-    tagBg: "rgba(244,114,182,0.18)",
-    tagColor: "#F9A8D4",
+    accent: "#BE185D",
+    bg: "linear-gradient(135deg, #FDF2F8 0%, #FFFFFF 100%)",
+    border: "#FCE7F3",
+    iconBg: "#FCE7F3",
+    tagBg: "#FCE7F3",
+    tagColor: "#BE185D",
     icon: "👗",
   },
   {
@@ -247,12 +247,12 @@ const MODULES: {
     description: "Analyse rejection reasons, agent performance and queue trends across content types.",
     email: "rejection@netscribes.com",
     tags: ["REASONS", "QUEUES", "AGENTS"],
-    accent: "#F87171",
-    bg: "linear-gradient(135deg, rgba(127,29,29,0.45), rgba(15,23,42,0.85))",
-    border: "rgba(248,113,113,0.35)",
-    iconBg: "rgba(248,113,113,0.18)",
-    tagBg: "rgba(248,113,113,0.18)",
-    tagColor: "#FCA5A5",
+    accent: "#E02424",
+    bg: "linear-gradient(135deg, #FEF2F2 0%, #FFFFFF 100%)",
+    border: "#FEE2E2",
+    iconBg: "#FEE2E2",
+    tagBg: "#FEE2E2",
+    tagColor: "#E02424",
     icon: "⭐",
   },
 ];
@@ -262,23 +262,23 @@ function ModuleSelect({ onSelect }: { onSelect: (m: ModuleKey) => void }) {
     <div
       style={{
         minHeight: "100vh",
-        background: "radial-gradient(ellipse at top, #0F172A 0%, #020617 70%)",
+        background: COLORS.bg,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         padding: "48px 24px",
-        color: "#E2E8F0",
-        fontFamily: "inherit",
+        color: COLORS.text,
+        fontFamily: "'DM Sans', sans-serif",
       }}
     >
       <div style={{ textAlign: "center", marginBottom: 48 }}>
-        <img src={logo} alt="Netscribes" style={{ height: 36, marginBottom: 8, filter: "brightness(0) invert(1)" }} />
-        <div style={{ fontSize: 11, letterSpacing: 4, color: "#60A5FA", fontWeight: 600, marginBottom: 18 }}>
+        <img src={logo} alt="Netscribes" style={{ height: 36, marginBottom: 8 }} />
+        <div style={{ fontSize: 11, letterSpacing: 4, color: COLORS.primary, fontWeight: 600, marginBottom: 18 }}>
           INTELLIGENCE PLATFORM
         </div>
-        <h1 style={{ fontSize: 36, fontWeight: 700, color: "#fff", margin: "0 0 10px" }}>UGC Intelligence Hub</h1>
-        <p style={{ color: "#94A3B8", fontSize: 14, margin: 0 }}>Select a module to begin your analysis.</p>
+        <h1 style={{ fontSize: 36, fontWeight: 700, color: COLORS.text, margin: "0 0 10px" }}>UGC Intelligence Hub</h1>
+        <p style={{ color: COLORS.muted, fontSize: 14, margin: 0 }}>Select a module to begin your analysis.</p>
       </div>
 
       <div
@@ -301,19 +301,22 @@ function ModuleSelect({ onSelect }: { onSelect: (m: ModuleKey) => void }) {
               borderRadius: 14,
               padding: 24,
               cursor: "pointer",
-              color: "inherit",
-              fontFamily: "inherit",
-              transition: "transform 0.15s ease, border-color 0.15s ease",
+              color: COLORS.text,
+              fontFamily: "'DM Sans', sans-serif",
+              transition: "transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease",
+              boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
               position: "relative",
               minHeight: 220,
             }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.transform = "translateY(-3px)";
               (e.currentTarget as HTMLElement).style.borderColor = m.accent;
+              (e.currentTarget as HTMLElement).style.boxShadow = "0 8px 24px rgba(15,23,42,0.08)";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
               (e.currentTarget as HTMLElement).style.borderColor = m.border;
+              (e.currentTarget as HTMLElement).style.boxShadow = "0 1px 3px rgba(15,23,42,0.04)";
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
@@ -333,8 +336,8 @@ function ModuleSelect({ onSelect }: { onSelect: (m: ModuleKey) => void }) {
               </div>
               <span style={{ color: m.accent, fontSize: 18 }}>→</span>
             </div>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: "0 0 8px" }}>{m.title}</h3>
-            <p style={{ fontSize: 13, color: "#CBD5E1", lineHeight: 1.5, margin: "0 0 18px" }}>{m.description}</p>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: COLORS.text, margin: "0 0 8px" }}>{m.title}</h3>
+            <p style={{ fontSize: 13, color: COLORS.muted, lineHeight: 1.5, margin: "0 0 18px" }}>{m.description}</p>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {m.tags.map((t) => (
                 <span
@@ -357,7 +360,7 @@ function ModuleSelect({ onSelect }: { onSelect: (m: ModuleKey) => void }) {
         ))}
       </div>
 
-      <div style={{ marginTop: 48, fontSize: 12, color: "#475569" }}>Prepared for Flipkart · 2026</div>
+      <div style={{ marginTop: 48, fontSize: 12, color: COLORS.muted }}>Prepared for Flipkart · 2026</div>
     </div>
   );
 }
