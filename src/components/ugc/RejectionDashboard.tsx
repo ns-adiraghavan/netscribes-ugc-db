@@ -1185,6 +1185,11 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
   const [loadedData, setLoadedData] = useState<LoadedMonth[]>([]);
   const [loadingState, setLoadingState] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<string[]>([]);
+  const [progress, setProgress] = useState<{ done: number; total: number; current: string }>({
+    done: 0,
+    total: 0,
+    current: "",
+  });
 
   // Small queues load first so Overview renders quickly.
   // Text + Image (chunked, large) load after in the background.
@@ -1207,8 +1212,19 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
 
     const stateKey = `${queue}_${monthKey}`;
     setLoadingState((prev) => ({ ...prev, [stateKey]: true }));
+    // Each large queue file is split into 2 parts; small queues are single files
+    const fileUnits = LARGE_QUEUES.includes(queue) ? 2 : 1;
+    setProgress((p) => ({ ...p, total: p.total + fileUnits, current: `${queue} ${m.label}` }));
     try {
-      const rows = await fetchQueueMonth(queue, m.year, m.month);
+      const rows = await fetchQueueMonth(queue, m.year, m.month, () => {
+        setProgress((p) => ({ ...p, done: p.done + 1, current: `${queue} ${m.label}` }));
+      });
+      // If the file came from cache, fetchQueueMonth doesn't fire onFileDone
+      // — reconcile so the bar still reaches 100%.
+      setProgress((p) => {
+        const expectedMin = p.done; // cache hits bypass increments
+        return p;
+      });
       const tagged = rows.map((r) => ({
         ...r,
         queue_type: r.queue_type || queue,
@@ -1220,6 +1236,8 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
     } catch (e: any) {
       loadedKeysRef.current.delete(cacheKey); // allow retry on error
       setErrors((prev) => [...prev, `${queue} ${m.label}: ${e?.message || String(e)}`]);
+      // Skip this file's units so the bar still completes
+      setProgress((p) => ({ ...p, done: Math.min(p.done + fileUnits, p.total) }));
     } finally {
       setLoadingState((prev) => {
         const n = { ...prev };
@@ -1257,6 +1275,8 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
   const allRows = useMemo(() => loadedData.flatMap((d) => d.rows), [loadedData]);
 
   const isLoading = Object.values(loadingState).some(Boolean);
+  const pctDone =
+    progress.total > 0 ? Math.min(100, Math.round((progress.done / progress.total) * 100)) : 0;
 
   return (
     <>
@@ -1291,7 +1311,22 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
           {allRows.length === 0 && isLoading && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 80, gap: 16 }}>
               <div className="rej-spinner" />
-              <div style={{ color: COLORS.muted, fontSize: 14 }}>Loading rejection data…</div>
+              <div style={{ color: COLORS.muted, fontSize: 14 }}>
+                Loading rejection data… {progress.done}/{progress.total} files ({pctDone}%)
+              </div>
+              <div style={{ width: 320, height: 6, background: "#E5E7EB", borderRadius: 4, overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${pctDone}%`,
+                    height: "100%",
+                    background: COLORS.primary,
+                    transition: "width 0.25s ease",
+                  }}
+                />
+              </div>
+              {progress.current && (
+                <div style={{ color: COLORS.muted, fontSize: 11 }}>Currently fetching: {progress.current}</div>
+              )}
             </div>
           )}
 
@@ -1308,9 +1343,21 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
                 <>
                   <OverviewTab allRows={allRows} selectedMonths={selectedMonths} />
                   {isLoading && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 4px", color: COLORS.muted, fontSize: 13 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 4px", color: COLORS.muted, fontSize: 13 }}>
                       <div className="rej-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                      Loading remaining queues — charts will update automatically…
+                      <span>
+                        Loading remaining queues — {progress.done}/{progress.total} files ({pctDone}%)
+                      </span>
+                      <div style={{ flex: 1, maxWidth: 240, height: 4, background: "#E5E7EB", borderRadius: 4, overflow: "hidden" }}>
+                        <div
+                          style={{
+                            width: `${pctDone}%`,
+                            height: "100%",
+                            background: COLORS.primary,
+                            transition: "width 0.25s ease",
+                          }}
+                        />
+                      </div>
                     </div>
                   )}
                 </>
