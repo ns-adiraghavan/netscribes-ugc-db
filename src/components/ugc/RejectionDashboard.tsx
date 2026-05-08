@@ -1409,6 +1409,10 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
       return;
     }
     fetchQueueRef.current.push({ queue, monthKey, priority });
+    // Reserve progress units up-front so the user sees the full file count
+    // (e.g. "0 / 21") immediately, not just the items currently in flight.
+    const fileUnits = LARGE_QUEUES.includes(queue) ? 2 : 1;
+    setProgress((p) => ({ ...p, total: p.total + fileUnits }));
     pump();
   };
 
@@ -1422,9 +1426,10 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
 
     const stateKey = `${queue}_${monthKey}`;
     setLoadingState((prev) => ({ ...prev, [stateKey]: true }));
-    // Each large queue file is split into 2 parts; small queues are single files
+    // Each large queue file is split into 2 parts; small queues are single files.
+    // Total units were already reserved in enqueueFetch — only update `current` here.
     const fileUnits = LARGE_QUEUES.includes(queue) ? 2 : 1;
-    setProgress((p) => ({ ...p, total: p.total + fileUnits, current: `${queue} ${m.label}` }));
+    setProgress((p) => ({ ...p, current: `${queue} ${m.label}` }));
     try {
       const rows = await fetchQueueMonth(queue, m.year, m.month, () => {
         setProgress((p) => ({ ...p, done: p.done + 1, current: `${queue} ${m.label}` }));
