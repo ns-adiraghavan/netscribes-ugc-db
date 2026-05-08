@@ -1219,12 +1219,6 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
       const rows = await fetchQueueMonth(queue, m.year, m.month, () => {
         setProgress((p) => ({ ...p, done: p.done + 1, current: `${queue} ${m.label}` }));
       });
-      // If the file came from cache, fetchQueueMonth doesn't fire onFileDone
-      // — reconcile so the bar still reaches 100%.
-      setProgress((p) => {
-        const expectedMin = p.done; // cache hits bypass increments
-        return p;
-      });
       const tagged = rows.map((r) => ({
         ...r,
         queue_type: r.queue_type || queue,
