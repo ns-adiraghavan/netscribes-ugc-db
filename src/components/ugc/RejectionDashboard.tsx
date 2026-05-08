@@ -238,24 +238,18 @@ async function fetchQueueMonth(
   if (metaRes.ok) {
     const meta: { parts: number; filenames: string[] } = await metaRes.json();
 
-    // Download all parts in parallel (network-bound), but decompress them
-    // sequentially as each arrives so peak memory stays at ~1 inflated part.
-    // Compressed buffers are small (~24MB each) — holding both in flight is fine.
-    const partPromises = meta.filenames.map(async (fname) => {
+    // Sequential fetch + decompress per part. Yields to the event loop
+    // between parts so the UI can repaint and the browser doesn't freeze.
+    const rows: UGCRow[] = [];
+    for (const fname of meta.filenames) {
       const r = await fetchWithRetry(`${DATA_PREFIX}/${fname}`);
       if (!r.ok) throw new Error(`Part not found: ${fname} (${r.status})`);
-      return new Uint8Array(await r.arrayBuffer());
-    });
-
-    const rows: UGCRow[] = [];
-    for (const p of partPromises) {
-      let buf: Uint8Array | null = await p;
+      const buf = new Uint8Array(await r.arrayBuffer());
       const partRows = decompress(buf);
-      buf = null; // free compressed buffer immediately
       for (let i = 0; i < partRows.length; i++) rows.push(partRows[i]);
       partRows.length = 0;
       onFileDone?.();
-      // Yield so the browser can GC + paint the progress bar.
+      // Yield to the browser event loop so UI can repaint between parts.
       await new Promise((res) => setTimeout(res, 0));
     }
 
