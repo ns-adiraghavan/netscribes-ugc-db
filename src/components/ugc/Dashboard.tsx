@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Trends from "./Trends";
 import DailyTab from "./Daily";
 import EntryForm from "./EntryForm";
+import RejectionDashboard from "./RejectionDashboard";
 import logo from "@/assets/netscribes-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -47,11 +48,12 @@ function loadPako(): Promise<NonNullable<Window["pako"]>> {
   });
 }
 
-type Platform = "flipkart" | "myntra";
+type Platform = "flipkart" | "myntra" | "rejection";
 
 const CREDS: Record<string, { password: string; platform: Platform }> = {
   "flipkart@netscribes.com": { password: "fk@ugc2025", platform: "flipkart" as Platform },
   "myntra@netscribes.com": { password: "myn@ugc2025", platform: "myntra" as Platform },
+  "rejection@netscribes.com": { password: "rej@ugc2026", platform: "rejection" as Platform },
 };
 
 const COLORS = {
@@ -420,6 +422,13 @@ export default function Dashboard() {
       return;
     }
     setError("");
+
+    // Rejection platform loads its own data lazily — no upfront fetch needed
+    if (c.platform === "rejection") {
+      setPlatform("rejection");
+      return;
+    }
+
     setLoading(true);
     try {
       const url = c.platform === "flipkart" ? "/flipkart_ugc.gz.bin" : "/myntra_ugc.gz.bin";
@@ -466,6 +475,11 @@ export default function Dashboard() {
   };
 
   if (!platform) return <Login onLogin={handleLogin} error={error} loading={loading} />;
+
+  // Rejection Intelligence — fully self-contained module
+  if (platform === "rejection") {
+    return <RejectionDashboard onLogout={handleLogout} />;
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: COLORS.bg }}>
