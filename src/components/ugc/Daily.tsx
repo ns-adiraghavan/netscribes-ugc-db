@@ -309,7 +309,7 @@ export default function Daily({
 
       <div style={card}>
         <h3 style={heading}>Daily Net Volume (Inflow − Outflow) — {combinedLabel}</h3>
-        <div style={{ width: "100%", height: 200 }}>
+        <div style={{ width: "100%", height: 260 }}>
           <ResponsiveContainer>
             <LineChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 64 }}>
               <CartesianGrid stroke={COLORS.border} vertical={false} />
@@ -341,7 +341,7 @@ export default function Daily({
 
       <div style={card}>
         <h3 style={heading}>Daily TAT</h3>
-        <div style={{ width: "100%", height: 140 }}>
+        <div style={{ width: "100%", height: 220 }}>
           <ResponsiveContainer>
             <LineChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 64 }}>
               <CartesianGrid stroke={COLORS.border} vertical={false} />
