@@ -305,12 +305,21 @@ function KpiCard({
   value,
   sub,
   color,
+  delta,
 }: {
   label: string;
   value: string | number;
   sub?: string;
   color?: string;
+  delta?: { text: string; direction: "up-bad" | "down-good" | "neutral" };
 }) {
+  const deltaStyle = delta
+    ? delta.direction === "up-bad"
+      ? { bg: "#FEE2E2", fg: "#E02424", arrow: "▲ " }
+      : delta.direction === "down-good"
+      ? { bg: "#D1FAE5", fg: "#057A55", arrow: "▼ " }
+      : { bg: "#F3F4F6", fg: "#6B7280", arrow: "→ " }
+    : null;
   return (
     <div style={card}>
       <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 6, fontWeight: 500 }}>{label}</div>
@@ -318,6 +327,25 @@ function KpiCard({
         {typeof value === "number" ? fmtNum(value) : value}
       </div>
       {sub && <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 4 }}>{sub}</div>}
+      {delta && deltaStyle && (
+        <div>
+          <span
+            style={{
+              fontSize: 11,
+              padding: "2px 8px",
+              borderRadius: 6,
+              display: "inline-block",
+              marginTop: 6,
+              background: deltaStyle.bg,
+              color: deltaStyle.fg,
+              fontWeight: 600,
+            }}
+          >
+            {deltaStyle.arrow}
+            {delta.text}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
