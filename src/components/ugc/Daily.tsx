@@ -309,11 +309,18 @@ export default function Daily({
 
       <div style={card}>
         <h3 style={heading}>Daily Net Volume (Inflow − Outflow) — {combinedLabel}</h3>
-        <div style={{ width: "100%", height: 200 }}>
+        <div style={{ width: "100%", height: 260 }}>
           <ResponsiveContainer>
-            <LineChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+            <LineChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 64 }}>
               <CartesianGrid stroke={COLORS.border} vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: COLORS.muted }} interval={interval} hide={data.length > 60} />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 9, fill: COLORS.muted }}
+                angle={-45}
+                textAnchor="end"
+                height={60}
+                interval={interval}
+              />
               <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} tickFormatter={(v) => v.toLocaleString()} />
               <Tooltip
                 contentStyle={tooltipStyle}
@@ -334,11 +341,18 @@ export default function Daily({
 
       <div style={card}>
         <h3 style={heading}>Daily TAT</h3>
-        <div style={{ width: "100%", height: 140 }}>
+        <div style={{ width: "100%", height: 220 }}>
           <ResponsiveContainer>
-            <LineChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+            <LineChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 64 }}>
               <CartesianGrid stroke={COLORS.border} vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: COLORS.muted }} interval={interval} hide={data.length > 60} />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 9, fill: COLORS.muted }}
+                angle={-45}
+                textAnchor="end"
+                height={60}
+                interval={interval}
+              />
               <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} tickFormatter={(v) => `${v}h`} />
               <Tooltip
                 contentStyle={tooltipStyle}
