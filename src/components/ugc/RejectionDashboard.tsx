@@ -210,14 +210,21 @@ async function fetchQueueMonth(
 
   // ── Helper: decompress + parse + project a single Uint8Array ─────────────
   const decompress = (buf: Uint8Array): UGCRow[] => {
+    let text: string;
     try {
-      const text = pako.inflate(buf, { to: "string" });
-      return safeParseJSON(text).map(projectRow);
+      text = pako.inflate(buf, { to: "string" });
     } catch {
       // File is plain JSON (not gzip) — decode directly
-      const text = new TextDecoder().decode(buf);
-      return safeParseJSON(text).map(projectRow);
+      text = new TextDecoder().decode(buf);
     }
+    const raw = safeParseJSON(text);
+    // Free the giant intermediate string ASAP before mapping allocates more.
+    text = "";
+    const out: UGCRow[] = new Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = projectRow(raw[i]);
+    // Drop references to the heavy raw objects so GC can reclaim them.
+    raw.length = 0;
+    return out;
   };
 
   // ── Step 1: probe for .meta.json (chunked large file) ────────────────────
@@ -231,18 +238,23 @@ async function fetchQueueMonth(
   if (metaRes.ok) {
     const meta: { parts: number; filenames: string[] } = await metaRes.json();
 
-    // Each part is its own valid .json.gz — fetch sequentially with retry
-    // (avoids browser connection caps + lets us report per-part progress)
-    const partArrays: UGCRow[][] = [];
+    // Fetch + decompress + project each part sequentially, then drop the
+    // raw buffer/string references before the next part — keeps peak
+    // memory at ~1 part instead of N parts simultaneously.
+    const rows: UGCRow[] = [];
     for (const fname of meta.filenames) {
       const r = await fetchWithRetry(`${DATA_PREFIX}/${fname}`);
       if (!r.ok) throw new Error(`Part not found: ${fname} (${r.status})`);
-      const buf = new Uint8Array(await r.arrayBuffer());
-      partArrays.push(decompress(buf));
+      let buf: Uint8Array | null = new Uint8Array(await r.arrayBuffer());
+      const partRows = decompress(buf);
+      buf = null; // free ~24MB compressed buffer immediately
+      for (let i = 0; i < partRows.length; i++) rows.push(partRows[i]);
+      partRows.length = 0;
       onFileDone?.();
+      // Yield to the event loop so the browser can GC + paint progress.
+      await new Promise((res) => setTimeout(res, 0));
     }
 
-    const rows = partArrays.flat();
     ROW_CACHE.set(cacheKey, rows);
     return rows;
   }
