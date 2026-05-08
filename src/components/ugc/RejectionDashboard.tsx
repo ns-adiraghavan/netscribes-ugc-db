@@ -1380,6 +1380,38 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
   // This avoids stale closure bugs with useCallback([loadedData]).
   const loadedKeysRef = useRef<Set<string>>(new Set());
 
+  // Concurrency-limited fetch queue with priority. The active tab's queue is
+  // bumped to the front when the user switches tabs, so subtab data starts
+  // downloading immediately instead of waiting behind already-queued items.
+  const MAX_CONCURRENT = 2;
+  const fetchQueueRef = useRef<{ queue: QueueType; monthKey: MonthKey; priority: number }[]>([]);
+  const activeWorkersRef = useRef(0);
+  const fetchRunnerRef = useRef<(q: QueueType, m: MonthKey) => Promise<void>>(() => Promise.resolve());
+
+  const pump = () => {
+    while (activeWorkersRef.current < MAX_CONCURRENT && fetchQueueRef.current.length > 0) {
+      fetchQueueRef.current.sort((a, b) => b.priority - a.priority);
+      const next = fetchQueueRef.current.shift()!;
+      activeWorkersRef.current++;
+      fetchRunnerRef.current(next.queue, next.monthKey).finally(() => {
+        activeWorkersRef.current--;
+        pump();
+      });
+    }
+  };
+
+  const enqueueFetch = (queue: QueueType, monthKey: MonthKey, priority: number) => {
+    const cacheKey = `${queue}__${monthKey}`;
+    if (loadedKeysRef.current.has(cacheKey)) return;
+    const existing = fetchQueueRef.current.find((x) => x.queue === queue && x.monthKey === monthKey);
+    if (existing) {
+      if (priority > existing.priority) existing.priority = priority;
+      return;
+    }
+    fetchQueueRef.current.push({ queue, monthKey, priority });
+    pump();
+  };
+
   const fetchIfNeeded = async (queue: QueueType, monthKey: MonthKey) => {
     const cacheKey = `${queue}__${monthKey}`;
     if (loadedKeysRef.current.has(cacheKey)) return;
@@ -1421,21 +1453,20 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
       });
     }
   };
+  fetchRunnerRef.current = fetchIfNeeded;
 
   useEffect(() => {
-    if (tab === "Overview") {
-      // Kick off all queues + months in parallel. Small queues still finish
-      // first (smaller payloads) so Overview charts paint quickly, while
-      // large chunked queues stream in alongside them — no artificial delay.
-      for (const queue of [...SMALL_QUEUES, ...LARGE_QUEUES]) {
-        for (const monthKey of selectedMonths) {
-          fetchIfNeeded(queue, monthKey);
-        }
-      }
-    } else {
-      // Single queue tab — load all months for that queue
+    // Always enqueue every queue × month so subtab switches don't trigger
+    // a fresh download, but boost the active subtab's priority so it jumps
+    // to the front of the pending queue (currently-running fetches finish
+    // first, then prioritized ones run next).
+    const activeQueue = tab === "Overview" ? null : (tab.toLowerCase() as QueueType);
+    // Small queues get higher base priority than large (faster to render Overview).
+    const basePriority = (q: QueueType) => (SMALL_QUEUES.includes(q) ? 2 : 1);
+    for (const queue of QUEUES) {
       for (const monthKey of selectedMonths) {
-        fetchIfNeeded(tab.toLowerCase() as QueueType, monthKey);
+        const priority = queue === activeQueue ? 100 : basePriority(queue);
+        enqueueFetch(queue, monthKey, priority);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
