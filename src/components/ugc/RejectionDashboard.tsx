@@ -887,6 +887,7 @@ function QueueDeepDive({
   selectedMonths: MonthKey[];
   loadingState: Record<string, boolean>;
 }) {
+  const [activeReason, setActiveReason] = useState<string | null>(null);
   const activeMths = MONTHS.filter((m) => selectedMonths.includes(m.key));
 
   const filtered = allRows.filter(
@@ -974,7 +975,11 @@ function QueueDeepDive({
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
         <div style={card}>
           <SectionHeading>Top Rejection Reasons</SectionHeading>
-          <RejectionReasonChart rows={filtered} color={qColor} />
+          <RejectionReasonChart
+            rows={filtered}
+            color={qColor}
+            onReasonClick={(r) => setActiveReason((prev) => (prev === r ? null : r))}
+          />
         </div>
         <div style={card}>
           <SectionHeading>Language Distribution</SectionHeading>
@@ -1084,7 +1089,15 @@ function QueueDeepDive({
       {/* Agent Performance */}
       <div style={card}>
         <SectionHeading>Agent Performance — {QUEUE_LABELS[queue]} Queue</SectionHeading>
-        <AgentTable rows={filtered} />
+        <AgentTable
+          rows={
+            activeReason
+              ? filtered.filter((r) => r.action === "Rejected" && r.reason === activeReason)
+              : filtered
+          }
+          activeReason={activeReason}
+          onClearReason={() => setActiveReason(null)}
+        />
       </div>
     </div>
   );
