@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   LineChart,
   Line,
@@ -140,7 +141,15 @@ const tooltipStyle: React.CSSProperties = {
   boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
 };
 
-export default function Daily({ records, platform }: { records: any[]; platform: "flipkart" | "myntra" }) {
+export default function Daily({
+  records,
+  setRecords,
+  platform,
+}: {
+  records: any[];
+  setRecords: (fn: (prev: any[]) => any[]) => void;
+  platform: "flipkart" | "myntra";
+}) {
   const slicers = platform === "flipkart" ? FLIPKART_SLICERS : MYNTRA_SLICERS;
   const [range, setRange] = useState<Range>("Last 30 days");
   const [slicerKeys, setSlicerKeys] = useState<string[]>(["total"]);
@@ -347,7 +356,7 @@ export default function Daily({ records, platform }: { records: any[]; platform:
         </div>
       </div>
 
-      <DetailTable filtered={filtered} platform={platform} heading={heading} />
+      <DetailTable filtered={filtered} platform={platform} heading={heading} setRecords={setRecords} />
     </div>
   );
 }
