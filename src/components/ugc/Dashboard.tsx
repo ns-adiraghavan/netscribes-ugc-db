@@ -586,6 +586,33 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
         </div>
       </div>
 
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div style={cardBox}>
+          <h3 style={cardHeading}>Avg TAT Trend (monthly)</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={monthlyTrend} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+              <CartesianGrid stroke="#E5E7EB" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#6B7280" }} />
+              <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} tickFormatter={(v) => `${v}h`} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [v == null ? "—" : `${Number(v).toFixed(1)}h`, "Avg TAT"]} />
+              <Line type="monotone" dataKey="avg" stroke="#1E3A8A" strokeWidth={2} dot={false} connectNulls />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div style={cardBox}>
+          <h3 style={cardHeading}>% Days TAT &gt; 24h (monthly)</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={monthlyTrend} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+              <CartesianGrid stroke="#E5E7EB" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#6B7280" }} />
+              <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} tickFormatter={(v) => `${v}%`} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [`${Number(v).toFixed(1)}%`, "Days > 24h"]} />
+              <Line type="monotone" dataKey="over24Pct" stroke="#E02424" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
       <div style={{ background: "#F3F4F6", borderRadius: 8, padding: 16 }}>
         <h2 style={heading}>Latest Year Summary</h2>
         <KpiRow rows={latestRows} />
