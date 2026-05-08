@@ -1244,20 +1244,14 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
 
   useEffect(() => {
     if (tab === "Overview") {
-      // Phase 1: load small queues immediately so charts appear fast
-      for (const queue of SMALL_QUEUES) {
+      // Kick off all queues + months in parallel. Small queues still finish
+      // first (smaller payloads) so Overview charts paint quickly, while
+      // large chunked queues stream in alongside them — no artificial delay.
+      for (const queue of [...SMALL_QUEUES, ...LARGE_QUEUES]) {
         for (const monthKey of selectedMonths) {
           fetchIfNeeded(queue, monthKey);
         }
       }
-      // Phase 2: load large queues in background after a short yield
-      setTimeout(() => {
-        for (const queue of LARGE_QUEUES) {
-          for (const monthKey of selectedMonths) {
-            fetchIfNeeded(queue, monthKey);
-          }
-        }
-      }, 100);
     } else {
       // Single queue tab — load all months for that queue
       for (const monthKey of selectedMonths) {
