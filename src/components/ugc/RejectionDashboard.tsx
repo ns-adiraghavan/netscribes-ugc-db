@@ -9,7 +9,7 @@
  * Place this file at: src/components/ugc/RejectionDashboard.tsx
  */
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import logo from "@/assets/netscribes-logo.png";
 import {
   BarChart,
@@ -1110,39 +1110,41 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
   // Determine which queue is needed for current tab
   const activeQueues: QueueType[] = tab === "Overview" ? QUEUES : [tab.toLowerCase() as QueueType];
 
-  const fetchIfNeeded = useCallback(
-    async (queue: QueueType, monthKey: MonthKey) => {
-      const already = loadedData.find((d) => d.queue === queue && d.key === monthKey);
-      if (already) return;
+  // Use a ref to track which queue+month combos are already loaded or in-flight.
+  // This avoids stale closure bugs with useCallback([loadedData]).
+  const loadedKeysRef = useRef<Set<string>>(new Set());
 
-      const m = MONTHS.find((mm) => mm.key === monthKey);
-      if (!m) return;
+  const fetchIfNeeded = async (queue: QueueType, monthKey: MonthKey) => {
+    const cacheKey = `${queue}__${monthKey}`;
+    if (loadedKeysRef.current.has(cacheKey)) return;
+    loadedKeysRef.current.add(cacheKey); // mark immediately to prevent duplicate fetches
 
-      const stateKey = `${queue}_${monthKey}`;
-      setLoadingState((prev) => ({ ...prev, [stateKey]: true }));
-      try {
-        const rows = await fetchQueueMonth(queue, m.year, m.month);
-        // Tag each row with queue_type and month
-        const tagged = rows.map((r) => ({
-          ...r,
-          queue_type: r.queue_type || queue,
-          month: r.month || m.month,
-          year: r.year || m.year,
-          month_label: r.month_label || m.label,
-        }));
-        setLoadedData((prev) => [...prev, { key: monthKey, queue, rows: tagged }]);
-      } catch (e: any) {
-        setErrors((prev) => [...prev, `${queue} ${m.label}: ${e.message}`]);
-      } finally {
-        setLoadingState((prev) => {
-          const n = { ...prev };
-          delete n[stateKey];
-          return n;
-        });
-      }
-    },
-    [loadedData]
-  );
+    const m = MONTHS.find((mm) => mm.key === monthKey);
+    if (!m) return;
+
+    const stateKey = `${queue}_${monthKey}`;
+    setLoadingState((prev) => ({ ...prev, [stateKey]: true }));
+    try {
+      const rows = await fetchQueueMonth(queue, m.year, m.month);
+      const tagged = rows.map((r) => ({
+        ...r,
+        queue_type: r.queue_type || queue,
+        month: r.month || m.month,
+        year: r.year || m.year,
+        month_label: r.month_label || m.label,
+      }));
+      setLoadedData((prev) => [...prev, { key: monthKey, queue, rows: tagged }]);
+    } catch (e: any) {
+      loadedKeysRef.current.delete(cacheKey); // allow retry on error
+      setErrors((prev) => [...prev, `${queue} ${m.label}: ${e.message}`]);
+    } finally {
+      setLoadingState((prev) => {
+        const n = { ...prev };
+        delete n[stateKey];
+        return n;
+      });
+    }
+  };
 
   useEffect(() => {
     for (const queue of activeQueues) {
@@ -1150,7 +1152,7 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
         fetchIfNeeded(queue, monthKey);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, selectedMonths]);
 
   const allRows = useMemo(() => loadedData.flatMap((d) => d.rows), [loadedData]);
