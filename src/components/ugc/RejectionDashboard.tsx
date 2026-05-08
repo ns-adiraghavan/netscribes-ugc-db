@@ -25,7 +25,6 @@ import {
   Line,
   CartesianGrid,
   Legend,
-  ComposedChart,
 } from "recharts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -148,11 +147,29 @@ function safeParseJSON(text: string): any[] {
   return JSON.parse(cleaned);
 }
 
+// ── Session-level in-memory cache (survives tab switches, not page reload) ──
+// We intentionally avoid sessionStorage because values can be 40MB+ per queue.
+// A module-level Map holds the parsed rows for the lifetime of the session.
+const ROW_CACHE = new Map<string, UGCRow[]>();
+
 async function fetchQueueMonth(queue: QueueType, year: number, month: number): Promise<UGCRow[]> {
   const stem = `fk_ugc_${queue}_${year}_${String(month).padStart(2, "0")}`;
+  const cacheKey = stem;
+
+  // ── Return from cache immediately if already parsed ──────────────────────
+  if (ROW_CACHE.has(cacheKey)) {
+    return ROW_CACHE.get(cacheKey)!;
+  }
+
   const pako = await loadPako();
 
-  // Step 1: probe for a .meta.json — means the file was split into chunks
+  // ── Helper: decompress + parse a single Uint8Array ───────────────────────
+  const decompress = (buf: Uint8Array): UGCRow[] => {
+    const text = pako.inflate(buf, { to: "string" });
+    return safeParseJSON(text) as UGCRow[];
+  };
+
+  // ── Step 1: probe for .meta.json (chunked large file) ────────────────────
   let metaRes: Response;
   try {
     metaRes = await fetch(`${DATA_PREFIX}/${stem}.meta.json`);
@@ -163,6 +180,7 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
   if (metaRes.ok) {
     const meta: { parts: number; filenames: string[] } = await metaRes.json();
 
+    // Fetch all chunks in parallel
     const chunks: Uint8Array[] = await Promise.all(
       meta.filenames.map(async (fname) => {
         const r = await fetch(`${DATA_PREFIX}/${fname}`);
@@ -171,6 +189,7 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
       })
     );
 
+    // Concatenate then decompress as one gzip stream
     const totalLen = chunks.reduce((s, c) => s + c.length, 0);
     const combined = new Uint8Array(totalLen);
     let offset = 0;
@@ -179,11 +198,12 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
       offset += chunk.length;
     }
 
-    const text = pako.inflate(combined, { to: "string" });
-    return safeParseJSON(text) as UGCRow[];
+    const rows = decompress(combined);
+    ROW_CACHE.set(cacheKey, rows);
+    return rows;
   }
 
-  // Step 2: no meta.json — try fetching the whole .json.gz directly
+  // ── Step 2: whole file (small queues: video / question / answer) ──────────
   let res: Response;
   try {
     res = await fetch(`${DATA_PREFIX}/${stem}.json.gz`);
@@ -193,9 +213,10 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
 
   if (!res.ok) throw new Error(`${stem}: HTTP ${res.status} (checked both .meta.json and .json.gz)`);
 
-  const buf = await res.arrayBuffer();
-  const text = pako.inflate(new Uint8Array(buf), { to: "string" });
-  return safeParseJSON(text) as UGCRow[];
+  const buf = new Uint8Array(await res.arrayBuffer());
+  const rows = decompress(buf);
+  ROW_CACHE.set(cacheKey, rows);
+  return rows;
 }
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
@@ -519,7 +540,7 @@ function RatingRejectionChart({ rows }: { rows: UGCRow[] }) {
 
   return (
     <ResponsiveContainer width="100%" height={180}>
-      <ComposedChart data={data}>
+      <BarChart data={data}>
         <XAxis dataKey="star" tick={{ fontSize: 12 }} />
         <YAxis yAxisId="vol" tick={{ fontSize: 11 }} tickFormatter={fmtNum} />
         <YAxis yAxisId="rate" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
@@ -539,7 +560,7 @@ function RatingRejectionChart({ rows }: { rows: UGCRow[] }) {
           strokeWidth={2}
           dot={{ r: 3 }}
         />
-      </ComposedChart>
+      </BarChart>
     </ResponsiveContainer>
   );
 }
@@ -575,7 +596,7 @@ function VideoDurationChart({ rows }: { rows: UGCRow[] }) {
 
   return (
     <ResponsiveContainer width="100%" height={180}>
-      <ComposedChart data={data}>
+      <BarChart data={data}>
         <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
         <YAxis yAxisId="vol" tick={{ fontSize: 11 }} />
         <YAxis yAxisId="rate" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
@@ -592,7 +613,7 @@ function VideoDurationChart({ rows }: { rows: UGCRow[] }) {
           strokeWidth={2}
           dot={{ r: 3 }}
         />
-      </ComposedChart>
+      </BarChart>
     </ResponsiveContainer>
   );
 }
@@ -1125,8 +1146,12 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
   const [loadingState, setLoadingState] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<string[]>([]);
 
-  // Determine which queue is needed for current tab
-  const activeQueues: QueueType[] = tab === "Overview" ? QUEUES : [tab.toLowerCase() as QueueType];
+  // Small queues load first so Overview renders quickly.
+  // Text + Image (chunked, large) load after in the background.
+  const SMALL_QUEUES: QueueType[] = ["video", "question", "answer"];
+  const LARGE_QUEUES: QueueType[] = ["text", "image"];
+  const activeQueues: QueueType[] =
+    tab === "Overview" ? QUEUES : [tab.toLowerCase() as QueueType];
 
   // Use a ref to track which queue+month combos are already loaded or in-flight.
   // This avoids stale closure bugs with useCallback([loadedData]).
@@ -1165,9 +1190,25 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
   };
 
   useEffect(() => {
-    for (const queue of activeQueues) {
+    if (tab === "Overview") {
+      // Phase 1: load small queues immediately so charts appear fast
+      for (const queue of SMALL_QUEUES) {
+        for (const monthKey of selectedMonths) {
+          fetchIfNeeded(queue, monthKey);
+        }
+      }
+      // Phase 2: load large queues in background after a short yield
+      setTimeout(() => {
+        for (const queue of LARGE_QUEUES) {
+          for (const monthKey of selectedMonths) {
+            fetchIfNeeded(queue, monthKey);
+          }
+        }
+      }, 100);
+    } else {
+      // Single queue tab — load all months for that queue
       for (const monthKey of selectedMonths) {
-        fetchIfNeeded(queue, monthKey);
+        fetchIfNeeded(tab.toLowerCase() as QueueType, monthKey);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1220,9 +1261,20 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
             </div>
           )}
 
+          {/* Render as soon as ANY data arrives — don't wait for all 15 files */}
           {allRows.length > 0 && (
             <>
-              {tab === "Overview" && <OverviewTab allRows={allRows} selectedMonths={selectedMonths} />}
+              {tab === "Overview" && (
+                <>
+                  <OverviewTab allRows={allRows} selectedMonths={selectedMonths} />
+                  {isLoading && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 4px", color: COLORS.muted, fontSize: 13 }}>
+                      <div className="rej-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                      Loading remaining queues — charts will update automatically…
+                    </div>
+                  )}
+                </>
+              )}
               {tab !== "Overview" && (
                 <QueueDeepDive
                   queue={tab.toLowerCase() as QueueType}
