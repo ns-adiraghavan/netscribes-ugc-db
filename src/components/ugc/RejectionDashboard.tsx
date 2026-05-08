@@ -175,10 +175,28 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
     }
   };
 
+  // ── Helper: fetch with retries (handles transient network failures) ─────
+  const fetchWithRetry = async (url: string, attempts = 3): Promise<Response> => {
+    let lastErr: unknown;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const r = await fetch(url, { cache: "force-cache" });
+        if (r.ok) return r;
+        if (r.status >= 400 && r.status < 500 && r.status !== 408 && r.status !== 429) return r;
+        lastErr = new Error(`HTTP ${r.status}`);
+      } catch (e) {
+        lastErr = e;
+      }
+      // exponential backoff: 400ms, 800ms, 1600ms
+      await new Promise((res) => setTimeout(res, 400 * Math.pow(2, i)));
+    }
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  };
+
   // ── Step 1: probe for .meta.json (chunked large file) ────────────────────
   let metaRes: Response;
   try {
-    metaRes = await fetch(`${DATA_PREFIX}/${stem}.meta.json`);
+    metaRes = await fetchWithRetry(`${DATA_PREFIX}/${stem}.meta.json`);
   } catch {
     throw new Error(`Network error fetching ${stem}.meta.json`);
   }
@@ -186,14 +204,15 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
   if (metaRes.ok) {
     const meta: { parts: number; filenames: string[] } = await metaRes.json();
 
-    // Fetch all chunks in parallel
-    const chunks: Uint8Array[] = await Promise.all(
-      meta.filenames.map(async (fname) => {
-        const r = await fetch(`${DATA_PREFIX}/${fname}`);
-        if (!r.ok) throw new Error(`Chunk not found: ${fname} (${r.status})`);
-        return new Uint8Array(await r.arrayBuffer());
-      })
-    );
+    // Fetch chunks sequentially with retries — large binary chunks (24MB+
+    // each) cause "Failed to fetch" errors when many are in flight at once
+    // (browser connection cap, CDN throttling, transient resets).
+    const chunks: Uint8Array[] = [];
+    for (const fname of meta.filenames) {
+      const r = await fetchWithRetry(`${DATA_PREFIX}/${fname}`);
+      if (!r.ok) throw new Error(`Chunk not found: ${fname} (${r.status})`);
+      chunks.push(new Uint8Array(await r.arrayBuffer()));
+    }
 
     // Concatenate then decompress as one gzip stream
     const totalLen = chunks.reduce((s, c) => s + c.length, 0);
@@ -212,7 +231,7 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
   // ── Step 2: whole file (small queues: video / question / answer) ──────────
   let res: Response;
   try {
-    res = await fetch(`${DATA_PREFIX}/${stem}.json.gz`);
+    res = await fetchWithRetry(`${DATA_PREFIX}/${stem}.json.gz`);
   } catch {
     throw new Error(`Network error fetching ${stem}.json.gz`);
   }
