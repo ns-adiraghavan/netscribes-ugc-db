@@ -152,7 +152,32 @@ function safeParseJSON(text: string): any[] {
 // A module-level Map holds the parsed rows for the lifetime of the session.
 const ROW_CACHE = new Map<string, UGCRow[]>();
 
-async function fetchQueueMonth(queue: QueueType, year: number, month: number): Promise<UGCRow[]> {
+// ── Retry helper for transient network errors / 5xx / 429 ────────────────────
+async function fetchWithRetry(url: string, attempts = 3): Promise<Response> {
+  let lastErr: any;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return res;
+      // Retry on transient HTTP errors
+      if (![408, 429, 500, 502, 503, 504].includes(res.status)) return res;
+      lastErr = new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      lastErr = e;
+    }
+    if (i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, 400 * Math.pow(2, i)));
+    }
+  }
+  throw lastErr ?? new Error(`Failed to fetch ${url}`);
+}
+
+async function fetchQueueMonth(
+  queue: QueueType,
+  year: number,
+  month: number,
+  onFileDone?: () => void
+): Promise<UGCRow[]> {
   const stem = `fk_ugc_${queue}_${year}_${String(month).padStart(2, "0")}`;
   const cacheKey = stem;
 
@@ -201,15 +226,16 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
   if (metaRes.ok) {
     const meta: { parts: number; filenames: string[] } = await metaRes.json();
 
-    // Each part is its own valid .json.gz — decompress independently then merge
-    const partArrays: UGCRow[][] = await Promise.all(
-      meta.filenames.map(async (fname) => {
-        const r = await fetch(`${DATA_PREFIX}/${fname}`);
-        if (!r.ok) throw new Error(`Part not found: ${fname} (${r.status})`);
-        const buf = new Uint8Array(await r.arrayBuffer());
-        return decompress(buf);
-      })
-    );
+    // Each part is its own valid .json.gz — fetch sequentially with retry
+    // (avoids browser connection caps + lets us report per-part progress)
+    const partArrays: UGCRow[][] = [];
+    for (const fname of meta.filenames) {
+      const r = await fetchWithRetry(`${DATA_PREFIX}/${fname}`);
+      if (!r.ok) throw new Error(`Part not found: ${fname} (${r.status})`);
+      const buf = new Uint8Array(await r.arrayBuffer());
+      partArrays.push(decompress(buf));
+      onFileDone?.();
+    }
 
     const rows = partArrays.flat();
     ROW_CACHE.set(cacheKey, rows);
@@ -219,7 +245,7 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
   // ── Step 2: whole file (small queues: video / question / answer) ──────────
   let res: Response;
   try {
-    res = await fetch(`${DATA_PREFIX}/${stem}.json.gz`);
+    res = await fetchWithRetry(`${DATA_PREFIX}/${stem}.json.gz`);
   } catch {
     throw new Error(`Network error fetching ${stem}.json.gz`);
   }
@@ -229,6 +255,7 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
   const buf = new Uint8Array(await res.arrayBuffer());
   const rows = decompress(buf);
   ROW_CACHE.set(cacheKey, rows);
+  onFileDone?.();
   return rows;
 }
 
