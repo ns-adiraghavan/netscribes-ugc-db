@@ -25,6 +25,7 @@ import {
   Line,
   CartesianGrid,
   Legend,
+  ComposedChart,
 } from "recharts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -518,7 +519,7 @@ function RatingRejectionChart({ rows }: { rows: UGCRow[] }) {
 
   return (
     <ResponsiveContainer width="100%" height={180}>
-      <BarChart data={data}>
+      <ComposedChart data={data}>
         <XAxis dataKey="star" tick={{ fontSize: 12 }} />
         <YAxis yAxisId="vol" tick={{ fontSize: 11 }} tickFormatter={fmtNum} />
         <YAxis yAxisId="rate" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
@@ -538,7 +539,7 @@ function RatingRejectionChart({ rows }: { rows: UGCRow[] }) {
           strokeWidth={2}
           dot={{ r: 3 }}
         />
-      </BarChart>
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }
@@ -574,7 +575,7 @@ function VideoDurationChart({ rows }: { rows: UGCRow[] }) {
 
   return (
     <ResponsiveContainer width="100%" height={180}>
-      <BarChart data={data}>
+      <ComposedChart data={data}>
         <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
         <YAxis yAxisId="vol" tick={{ fontSize: 11 }} />
         <YAxis yAxisId="rate" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
@@ -591,7 +592,7 @@ function VideoDurationChart({ rows }: { rows: UGCRow[] }) {
           strokeWidth={2}
           dot={{ r: 3 }}
         />
-      </BarChart>
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }
