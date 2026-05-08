@@ -165,8 +165,14 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
 
   // ── Helper: decompress + parse a single Uint8Array ───────────────────────
   const decompress = (buf: Uint8Array): UGCRow[] => {
-    const text = pako.inflate(buf, { to: "string" });
-    return safeParseJSON(text) as UGCRow[];
+    // Try gzip first; fall back to plain JSON if the file is uncompressed
+    try {
+      const text = pako.inflate(buf, { to: "string" });
+      return safeParseJSON(text) as UGCRow[];
+    } catch {
+      const text = new TextDecoder().decode(buf);
+      return safeParseJSON(text) as UGCRow[];
+    }
   };
 
   // ── Step 1: probe for .meta.json (chunked large file) ────────────────────
