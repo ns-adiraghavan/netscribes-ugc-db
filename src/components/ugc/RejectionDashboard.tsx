@@ -1371,6 +1371,7 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
                   queue={tab.toLowerCase() as QueueType}
                   allRows={allRows}
                   selectedMonths={selectedMonths}
+                  loadingState={loadingState}
                 />
               )}
             </>
