@@ -1207,7 +1207,7 @@ function OverviewTab({ allRows, selectedMonths }: { allRows: UGCRow[]; selectedM
             <YAxis tickFormatter={fmtNum} tick={{ fontSize: 11 }} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => fmtNum(Number(v))} />
             <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="total" name="Total" fill="#E5E7EB" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="total" name="Total" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
             <Bar dataKey="rejected" name="Rejected" fill={COLORS.danger} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
