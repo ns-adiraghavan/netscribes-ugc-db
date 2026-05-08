@@ -128,9 +128,24 @@ function KpiRow({ rows }: { rows: any[] }) {
   );
 }
 
-function Login({ onLogin, error, loading }: { onLogin: (e: string, p: string) => void; error: string; loading: boolean }) {
-  const [email, setEmail] = useState("");
+function Login({
+  onLogin,
+  error,
+  loading,
+  prefillEmail,
+  onBack,
+}: {
+  onLogin: (e: string, p: string) => void;
+  error: string;
+  loading: boolean;
+  prefillEmail?: string;
+  onBack?: () => void;
+}) {
+  const [email, setEmail] = useState(prefillEmail || "");
   const [password, setPassword] = useState("");
+  useEffect(() => {
+    if (prefillEmail) setEmail(prefillEmail);
+  }, [prefillEmail]);
   return (
     <div style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ ...card, width: "100%", maxWidth: 400 }}>
@@ -156,6 +171,7 @@ function Login({ onLogin, error, loading }: { onLogin: (e: string, p: string) =>
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            autoFocus={!!prefillEmail}
             style={{ width: "100%", padding: "10px 12px", border: `1px solid ${COLORS.border}`, borderRadius: 8, marginBottom: 14, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" }}
           />
           {error && <div style={{ color: COLORS.danger, fontSize: 13, marginBottom: 12 }}>{error}</div>}
@@ -166,8 +182,182 @@ function Login({ onLogin, error, loading }: { onLogin: (e: string, p: string) =>
           >
             {loading ? "Loading data..." : "Sign in"}
           </button>
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              style={{ width: "100%", padding: "10px 12px", marginTop: 10, background: "transparent", color: COLORS.muted, border: "none", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              ← Back to module selection
+            </button>
+          )}
         </form>
       </div>
+    </div>
+  );
+}
+
+type ModuleKey = "flipkart" | "myntra" | "rejection";
+
+const MODULES: {
+  key: ModuleKey;
+  title: string;
+  description: string;
+  email: string;
+  tags: string[];
+  accent: string;
+  bg: string;
+  border: string;
+  iconBg: string;
+  tagBg: string;
+  tagColor: string;
+  icon: string;
+}[] = [
+  {
+    key: "flipkart",
+    title: "Flipkart Moderation",
+    description: "Track inflow, outflow, TAT and content mix for Flipkart UGC moderation.",
+    email: "flipkart@netscribes.com",
+    tags: ["INFLOW", "TAT", "CONTENT MIX"],
+    accent: "#60A5FA",
+    bg: "linear-gradient(135deg, rgba(30,58,138,0.45), rgba(15,23,42,0.85))",
+    border: "rgba(96,165,250,0.35)",
+    iconBg: "rgba(96,165,250,0.18)",
+    tagBg: "rgba(96,165,250,0.18)",
+    tagColor: "#93C5FD",
+    icon: "📊",
+  },
+  {
+    key: "myntra",
+    title: "Myntra Moderation",
+    description: "Monitor Myntra UGC volumes, turnaround time and daily moderation health.",
+    email: "myntra@netscribes.com",
+    tags: ["INFLOW", "TAT", "DAILY"],
+    accent: "#F472B6",
+    bg: "linear-gradient(135deg, rgba(157,23,77,0.45), rgba(15,23,42,0.85))",
+    border: "rgba(244,114,182,0.35)",
+    iconBg: "rgba(244,114,182,0.18)",
+    tagBg: "rgba(244,114,182,0.18)",
+    tagColor: "#F9A8D4",
+    icon: "👗",
+  },
+  {
+    key: "rejection",
+    title: "Flipkart Rejections",
+    description: "Analyse rejection reasons, agent performance and queue trends across content types.",
+    email: "rejection@netscribes.com",
+    tags: ["REASONS", "QUEUES", "AGENTS"],
+    accent: "#F87171",
+    bg: "linear-gradient(135deg, rgba(127,29,29,0.45), rgba(15,23,42,0.85))",
+    border: "rgba(248,113,113,0.35)",
+    iconBg: "rgba(248,113,113,0.18)",
+    tagBg: "rgba(248,113,113,0.18)",
+    tagColor: "#FCA5A5",
+    icon: "⭐",
+  },
+];
+
+function ModuleSelect({ onSelect }: { onSelect: (m: ModuleKey) => void }) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "radial-gradient(ellipse at top, #0F172A 0%, #020617 70%)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "48px 24px",
+        color: "#E2E8F0",
+        fontFamily: "inherit",
+      }}
+    >
+      <div style={{ textAlign: "center", marginBottom: 48 }}>
+        <img src={logo} alt="Netscribes" style={{ height: 36, marginBottom: 8, filter: "brightness(0) invert(1)" }} />
+        <div style={{ fontSize: 11, letterSpacing: 4, color: "#60A5FA", fontWeight: 600, marginBottom: 18 }}>
+          INTELLIGENCE PLATFORM
+        </div>
+        <h1 style={{ fontSize: 36, fontWeight: 700, color: "#fff", margin: "0 0 10px" }}>UGC Intelligence Hub</h1>
+        <p style={{ color: "#94A3B8", fontSize: 14, margin: 0 }}>Select a module to begin your analysis.</p>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 20,
+          width: "100%",
+          maxWidth: 1100,
+        }}
+      >
+        {MODULES.map((m) => (
+          <button
+            key={m.key}
+            onClick={() => onSelect(m.key)}
+            style={{
+              textAlign: "left",
+              background: m.bg,
+              border: `1px solid ${m.border}`,
+              borderRadius: 14,
+              padding: 24,
+              cursor: "pointer",
+              color: "inherit",
+              fontFamily: "inherit",
+              transition: "transform 0.15s ease, border-color 0.15s ease",
+              position: "relative",
+              minHeight: 220,
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.transform = "translateY(-3px)";
+              (e.currentTarget as HTMLElement).style.borderColor = m.accent;
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
+              (e.currentTarget as HTMLElement).style.borderColor = m.border;
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 8,
+                  background: m.iconBg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 18,
+                }}
+              >
+                {m.icon}
+              </div>
+              <span style={{ color: m.accent, fontSize: 18 }}>→</span>
+            </div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: "0 0 8px" }}>{m.title}</h3>
+            <p style={{ fontSize: 13, color: "#CBD5E1", lineHeight: 1.5, margin: "0 0 18px" }}>{m.description}</p>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {m.tags.map((t) => (
+                <span
+                  key={t}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: 1,
+                    padding: "4px 8px",
+                    borderRadius: 4,
+                    background: m.tagBg,
+                    color: m.tagColor,
+                  }}
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 48, fontSize: 12, color: "#475569" }}>Prepared for Flipkart · 2026</div>
     </div>
   );
 }
@@ -414,6 +604,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [tab, setTab] = useState("Overview");
+  const [selectedModule, setSelectedModule] = useState<ModuleKey | null>(null);
 
   const handleLogin = async (email: string, password: string) => {
     const c = CREDS[email];
@@ -472,9 +663,25 @@ export default function Dashboard() {
   const handleLogout = () => {
     setRecords([]);
     setPlatform(null);
+    setSelectedModule(null);
+    setError("");
   };
 
-  if (!platform) return <Login onLogin={handleLogin} error={error} loading={loading} />;
+  if (!platform) {
+    if (!selectedModule) {
+      return <ModuleSelect onSelect={(m) => { setError(""); setSelectedModule(m); }} />;
+    }
+    const prefill = MODULES.find((m) => m.key === selectedModule)?.email;
+    return (
+      <Login
+        onLogin={handleLogin}
+        error={error}
+        loading={loading}
+        prefillEmail={prefill}
+        onBack={() => { setError(""); setSelectedModule(null); }}
+      />
+    );
+  }
 
   // Rejection Intelligence — fully self-contained module
   if (platform === "rejection") {
