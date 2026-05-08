@@ -2,8 +2,8 @@
   "stem": "fk_ugc_image_2026_04",
   "parts": 2,
   "filenames": [
-    "fk_ugc_image_2026_04.part0.bin",
-    "fk_ugc_image_2026_04.part1.bin"
+    "fk_ugc_image_2026_04.part0.json.gz",
+    "fk_ugc_image_2026_04.part1.json.gz"
   ],
-  "original_size_bytes": 40549235
+  "total_rows": 439711
 }
