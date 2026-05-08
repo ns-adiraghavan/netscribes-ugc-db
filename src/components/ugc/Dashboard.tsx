@@ -16,6 +16,8 @@ import {
   ComposedChart,
   Bar,
   Line,
+  LineChart,
+  CartesianGrid,
 } from "recharts";
 
 declare global {
@@ -115,15 +117,14 @@ function KpiCard({ label, value, valueColor }: { label: string; value: string; v
 
 function KpiRow({ rows }: { rows: any[] }) {
   const k = computeKpis(rows);
-  const p95Color = k.p95 > 24 ? COLORS.danger : "#111827";
-  const over24Color = k.over24 > 20 ? COLORS.danger : k.over24 <= 10 ? COLORS.success : COLORS.amber;
+  const over24Pct = k.tatCount ? (k.over24 / k.tatCount) * 100 : 0;
+  const over24Color = over24Pct > 20 ? COLORS.danger : over24Pct <= 5 ? COLORS.success : COLORS.amber;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
       <KpiCard label="Total Inflow" value={fmtNum(k.inflow)} />
       <KpiCard label="Total Outflow" value={fmtNum(k.outflow)} />
       <KpiCard label="Avg TAT" value={`${k.avg.toFixed(1)}h`} />
-      <KpiCard label="Peak TAT" value={`${k.p95.toFixed(1)}h`} valueColor={p95Color} />
-      <KpiCard label="Days TAT > 24h" value={String(k.over24)} valueColor={over24Color} />
+      <KpiCard label="% Days TAT > 24h" value={`${over24Pct.toFixed(1)}%`} valueColor={over24Color} />
     </div>
   );
 }
