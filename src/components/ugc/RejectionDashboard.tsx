@@ -147,6 +147,25 @@ function safeParseJSON(text: string): any[] {
   return JSON.parse(cleaned);
 }
 
+// Strip fields no chart reads. Heavy text fields (product_title, image_url,
+// question_text, answer_text, etc.) inflate heap by 5–10× and cause the
+// renderer to OOM-crash ("Aw, Snap!") when the last large file loads.
+function projectRow(r: any): UGCRow {
+  return {
+    action: r.action,
+    reason: r.reason,
+    review_language: r.review_language,
+    agent_name: r.agent_name,
+    rating: r.rating,
+    category: r.category,
+    queue_type: r.queue_type,
+    year: r.year,
+    month: r.month,
+    month_label: r.month_label,
+    duration_seconds: r.duration_seconds,
+  };
+}
+
 // ── Session-level in-memory cache (survives tab switches, not page reload) ──
 // We intentionally avoid sessionStorage because values can be 40MB+ per queue.
 // A module-level Map holds the parsed rows for the lifetime of the session.
@@ -168,10 +187,10 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
     // Try gzip first; fall back to plain JSON if the file is uncompressed
     try {
       const text = pako.inflate(buf, { to: "string" });
-      return safeParseJSON(text) as UGCRow[];
+      return safeParseJSON(text).map(projectRow);
     } catch {
       const text = new TextDecoder().decode(buf);
-      return safeParseJSON(text) as UGCRow[];
+      return safeParseJSON(text).map(projectRow);
     }
   };
 
