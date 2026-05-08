@@ -147,25 +147,6 @@ function safeParseJSON(text: string): any[] {
   return JSON.parse(cleaned);
 }
 
-// Strip fields no chart reads. Heavy text fields (product_title, image_url,
-// question_text, answer_text, etc.) inflate heap by 5–10× and cause the
-// renderer to OOM-crash ("Aw, Snap!") when the last large file loads.
-function projectRow(r: any): UGCRow {
-  return {
-    action: r.action,
-    reason: r.reason,
-    review_language: r.review_language,
-    agent_name: r.agent_name,
-    rating: r.rating,
-    category: r.category,
-    queue_type: r.queue_type,
-    year: r.year,
-    month: r.month,
-    month_label: r.month_label,
-    duration_seconds: r.duration_seconds,
-  };
-}
-
 // ── Session-level in-memory cache (survives tab switches, not page reload) ──
 // We intentionally avoid sessionStorage because values can be 40MB+ per queue.
 // A module-level Map holds the parsed rows for the lifetime of the session.
@@ -182,40 +163,37 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
 
   const pako = await loadPako();
 
-  // ── Helper: decompress + parse a single Uint8Array ───────────────────────
+  // ── Project rows to only fields charts use — cuts memory 5-10x ─────────
+  const projectRow = (r: any): UGCRow => ({
+    action:          r.action,
+    reason:          r.reason          ?? null,
+    review_language: r.review_language ?? null,
+    agent_name:      r.agent_name      ?? null,
+    rating:          r.rating          ?? null,
+    category:        r.category        ?? null,
+    queue_type:      r.queue_type      ?? null,
+    month:           r.month           ?? null,
+    year:            r.year            ?? null,
+    month_label:     r.month_label     ?? null,
+    duration_seconds:r.duration_seconds ?? null,
+  });
+
+  // ── Helper: decompress + parse + project a single Uint8Array ─────────────
   const decompress = (buf: Uint8Array): UGCRow[] => {
-    // Try gzip first; fall back to plain JSON if the file is uncompressed
     try {
       const text = pako.inflate(buf, { to: "string" });
       return safeParseJSON(text).map(projectRow);
     } catch {
+      // File is plain JSON (not gzip) — decode directly
       const text = new TextDecoder().decode(buf);
       return safeParseJSON(text).map(projectRow);
     }
   };
 
-  // ── Helper: fetch with retries (handles transient network failures) ─────
-  const fetchWithRetry = async (url: string, attempts = 3): Promise<Response> => {
-    let lastErr: unknown;
-    for (let i = 0; i < attempts; i++) {
-      try {
-        const r = await fetch(url, { cache: "force-cache" });
-        if (r.ok) return r;
-        if (r.status >= 400 && r.status < 500 && r.status !== 408 && r.status !== 429) return r;
-        lastErr = new Error(`HTTP ${r.status}`);
-      } catch (e) {
-        lastErr = e;
-      }
-      // exponential backoff: 400ms, 800ms, 1600ms
-      await new Promise((res) => setTimeout(res, 400 * Math.pow(2, i)));
-    }
-    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
-  };
-
   // ── Step 1: probe for .meta.json (chunked large file) ────────────────────
   let metaRes: Response;
   try {
-    metaRes = await fetchWithRetry(`${DATA_PREFIX}/${stem}.meta.json`);
+    metaRes = await fetch(`${DATA_PREFIX}/${stem}.meta.json`);
   } catch {
     throw new Error(`Network error fetching ${stem}.meta.json`);
   }
@@ -223,15 +201,14 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
   if (metaRes.ok) {
     const meta: { parts: number; filenames: string[] } = await metaRes.json();
 
-    // Fetch chunks sequentially with retries — large binary chunks (24MB+
-    // each) cause "Failed to fetch" errors when many are in flight at once
-    // (browser connection cap, CDN throttling, transient resets).
-    const chunks: Uint8Array[] = [];
-    for (const fname of meta.filenames) {
-      const r = await fetchWithRetry(`${DATA_PREFIX}/${fname}`);
-      if (!r.ok) throw new Error(`Chunk not found: ${fname} (${r.status})`);
-      chunks.push(new Uint8Array(await r.arrayBuffer()));
-    }
+    // Fetch all chunks in parallel
+    const chunks: Uint8Array[] = await Promise.all(
+      meta.filenames.map(async (fname) => {
+        const r = await fetch(`${DATA_PREFIX}/${fname}`);
+        if (!r.ok) throw new Error(`Chunk not found: ${fname} (${r.status})`);
+        return new Uint8Array(await r.arrayBuffer());
+      })
+    );
 
     // Concatenate then decompress as one gzip stream
     const totalLen = chunks.reduce((s, c) => s + c.length, 0);
@@ -250,7 +227,7 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
   // ── Step 2: whole file (small queues: video / question / answer) ──────────
   let res: Response;
   try {
-    res = await fetchWithRetry(`${DATA_PREFIX}/${stem}.json.gz`);
+    res = await fetch(`${DATA_PREFIX}/${stem}.json.gz`);
   } catch {
     throw new Error(`Network error fetching ${stem}.json.gz`);
   }
