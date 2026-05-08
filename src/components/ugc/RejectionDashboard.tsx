@@ -1292,34 +1292,51 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
             loadingState={loadingState}
           />
 
+          {isLoading && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                background: "#fff",
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: 10,
+                padding: "12px 18px",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+              }}
+            >
+              <div className="rej-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: COLORS.muted }}>
+                  <span>
+                    Loading rejection data — {progress.done}/{progress.total} files ({pctDone}%)
+                  </span>
+                  {progress.current && (
+                    <span style={{ fontSize: 11, color: COLORS.muted, marginLeft: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {progress.current}
+                    </span>
+                  )}
+                </div>
+                <div style={{ width: "100%", height: 6, background: "#E5E7EB", borderRadius: 4, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      width: `${pctDone}%`,
+                      height: "100%",
+                      background: COLORS.primary,
+                      transition: "width 0.25s ease",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {errors.length > 0 && (
             <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: 12, fontSize: 12, color: COLORS.danger }}>
               <strong>Some files could not be loaded:</strong>
               <ul style={{ margin: "6px 0 0 16px" }}>
                 {errors.map((e, i) => <li key={i}>{e}</li>)}
               </ul>
-            </div>
-          )}
-
-          {allRows.length === 0 && isLoading && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 80, gap: 16 }}>
-              <div className="rej-spinner" />
-              <div style={{ color: COLORS.muted, fontSize: 14 }}>
-                Loading rejection data… {progress.done}/{progress.total} files ({pctDone}%)
-              </div>
-              <div style={{ width: 320, height: 6, background: "#E5E7EB", borderRadius: 4, overflow: "hidden" }}>
-                <div
-                  style={{
-                    width: `${pctDone}%`,
-                    height: "100%",
-                    background: COLORS.primary,
-                    transition: "width 0.25s ease",
-                  }}
-                />
-              </div>
-              {progress.current && (
-                <div style={{ color: COLORS.muted, fontSize: 11 }}>Currently fetching: {progress.current}</div>
-              )}
             </div>
           )}
 
@@ -1333,27 +1350,7 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
           {allRows.length > 0 && (
             <>
               {tab === "Overview" && (
-                <>
-                  <OverviewTab allRows={allRows} selectedMonths={selectedMonths} />
-                  {isLoading && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 4px", color: COLORS.muted, fontSize: 13 }}>
-                      <div className="rej-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                      <span>
-                        Loading remaining queues — {progress.done}/{progress.total} files ({pctDone}%)
-                      </span>
-                      <div style={{ flex: 1, maxWidth: 240, height: 4, background: "#E5E7EB", borderRadius: 4, overflow: "hidden" }}>
-                        <div
-                          style={{
-                            width: `${pctDone}%`,
-                            height: "100%",
-                            background: COLORS.primary,
-                            transition: "width 0.25s ease",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </>
+                <OverviewTab allRows={allRows} selectedMonths={selectedMonths} />
               )}
               {tab !== "Overview" && (
                 <QueueDeepDive
