@@ -1204,7 +1204,7 @@ function OverviewTab({ allRows, selectedMonths }: { allRows: UGCRow[]; selectedM
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={queueVolumeData}>
             <XAxis dataKey="queue" tick={{ fontSize: 12 }} />
-            <YAxis tickFormatter={fmtNum} tick={{ fontSize: 11 }} />
+            <YAxis tickFormatter={fmtNum} tick={{ fontSize: 11 }} scale="sqrt" domain={[0, "auto"]} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => fmtNum(Number(v))} />
             <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey="total" name="Total" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
