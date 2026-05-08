@@ -141,12 +141,23 @@ function loadPako(): Promise<NonNullable<Window["pako"]>> {
 
 const DATA_PREFIX = ""; // files are in /public/ → served from root in Vite
 
+// Replace NaN tokens (invalid JSON from Python) with null before parsing
+function safeParseJSON(text: string): any[] {
+  const cleaned = text.replace(/:\s*NaN/g, ": null");
+  return JSON.parse(cleaned);
+}
+
 async function fetchQueueMonth(queue: QueueType, year: number, month: number): Promise<UGCRow[]> {
   const stem = `fk_ugc_${queue}_${year}_${String(month).padStart(2, "0")}`;
   const pako = await loadPako();
 
   // Step 1: probe for a .meta.json — means the file was split into chunks
-  const metaRes = await fetch(`${DATA_PREFIX}/${stem}.meta.json`);
+  let metaRes: Response;
+  try {
+    metaRes = await fetch(`${DATA_PREFIX}/${stem}.meta.json`);
+  } catch {
+    throw new Error(`Network error fetching ${stem}.meta.json`);
+  }
 
   if (metaRes.ok) {
     const meta: { parts: number; filenames: string[] } = await metaRes.json();
@@ -154,12 +165,11 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
     const chunks: Uint8Array[] = await Promise.all(
       meta.filenames.map(async (fname) => {
         const r = await fetch(`${DATA_PREFIX}/${fname}`);
-        if (!r.ok) throw new Error(`Chunk not found: ${fname}`);
+        if (!r.ok) throw new Error(`Chunk not found: ${fname} (${r.status})`);
         return new Uint8Array(await r.arrayBuffer());
       })
     );
 
-    // Concatenate chunks then decompress as one gzip stream
     const totalLen = chunks.reduce((s, c) => s + c.length, 0);
     const combined = new Uint8Array(totalLen);
     let offset = 0;
@@ -169,15 +179,22 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
     }
 
     const text = pako.inflate(combined, { to: "string" });
-    return JSON.parse(text) as UGCRow[];
+    return safeParseJSON(text) as UGCRow[];
   }
 
-  // Step 2: file is small enough to serve whole
-  const res = await fetch(`${DATA_PREFIX}/${stem}.json.gz`);
-  if (!res.ok) throw new Error(`${stem}.json.gz not found`);
+  // Step 2: no meta.json — try fetching the whole .json.gz directly
+  let res: Response;
+  try {
+    res = await fetch(`${DATA_PREFIX}/${stem}.json.gz`);
+  } catch {
+    throw new Error(`Network error fetching ${stem}.json.gz`);
+  }
+
+  if (!res.ok) throw new Error(`${stem}: HTTP ${res.status} (checked both .meta.json and .json.gz)`);
+
   const buf = await res.arrayBuffer();
   const text = pako.inflate(new Uint8Array(buf), { to: "string" });
-  return JSON.parse(text) as UGCRow[];
+  return safeParseJSON(text) as UGCRow[];
 }
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
@@ -1136,7 +1153,7 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
       setLoadedData((prev) => [...prev, { key: monthKey, queue, rows: tagged }]);
     } catch (e: any) {
       loadedKeysRef.current.delete(cacheKey); // allow retry on error
-      setErrors((prev) => [...prev, `${queue} ${m.label}: ${e.message}`]);
+      setErrors((prev) => [...prev, `${queue} ${m.label}: ${e?.message || String(e)}`]);
     } finally {
       setLoadingState((prev) => {
         const n = { ...prev };
