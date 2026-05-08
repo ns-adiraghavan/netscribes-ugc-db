@@ -152,7 +152,32 @@ function safeParseJSON(text: string): any[] {
 // A module-level Map holds the parsed rows for the lifetime of the session.
 const ROW_CACHE = new Map<string, UGCRow[]>();
 
-async function fetchQueueMonth(queue: QueueType, year: number, month: number): Promise<UGCRow[]> {
+// ── Retry helper for transient network errors / 5xx / 429 ────────────────────
+async function fetchWithRetry(url: string, attempts = 3): Promise<Response> {
+  let lastErr: any;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return res;
+      // Retry on transient HTTP errors
+      if (![408, 429, 500, 502, 503, 504].includes(res.status)) return res;
+      lastErr = new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      lastErr = e;
+    }
+    if (i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, 400 * Math.pow(2, i)));
+    }
+  }
+  throw lastErr ?? new Error(`Failed to fetch ${url}`);
+}
+
+async function fetchQueueMonth(
+  queue: QueueType,
+  year: number,
+  month: number,
+  onFileDone?: () => void
+): Promise<UGCRow[]> {
   const stem = `fk_ugc_${queue}_${year}_${String(month).padStart(2, "0")}`;
   const cacheKey = stem;
 
@@ -201,15 +226,16 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
   if (metaRes.ok) {
     const meta: { parts: number; filenames: string[] } = await metaRes.json();
 
-    // Each part is its own valid .json.gz — decompress independently then merge
-    const partArrays: UGCRow[][] = await Promise.all(
-      meta.filenames.map(async (fname) => {
-        const r = await fetch(`${DATA_PREFIX}/${fname}`);
-        if (!r.ok) throw new Error(`Part not found: ${fname} (${r.status})`);
-        const buf = new Uint8Array(await r.arrayBuffer());
-        return decompress(buf);
-      })
-    );
+    // Each part is its own valid .json.gz — fetch sequentially with retry
+    // (avoids browser connection caps + lets us report per-part progress)
+    const partArrays: UGCRow[][] = [];
+    for (const fname of meta.filenames) {
+      const r = await fetchWithRetry(`${DATA_PREFIX}/${fname}`);
+      if (!r.ok) throw new Error(`Part not found: ${fname} (${r.status})`);
+      const buf = new Uint8Array(await r.arrayBuffer());
+      partArrays.push(decompress(buf));
+      onFileDone?.();
+    }
 
     const rows = partArrays.flat();
     ROW_CACHE.set(cacheKey, rows);
@@ -219,7 +245,7 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
   // ── Step 2: whole file (small queues: video / question / answer) ──────────
   let res: Response;
   try {
-    res = await fetch(`${DATA_PREFIX}/${stem}.json.gz`);
+    res = await fetchWithRetry(`${DATA_PREFIX}/${stem}.json.gz`);
   } catch {
     throw new Error(`Network error fetching ${stem}.json.gz`);
   }
@@ -229,6 +255,7 @@ async function fetchQueueMonth(queue: QueueType, year: number, month: number): P
   const buf = new Uint8Array(await res.arrayBuffer());
   const rows = decompress(buf);
   ROW_CACHE.set(cacheKey, rows);
+  onFileDone?.();
   return rows;
 }
 
@@ -1158,6 +1185,11 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
   const [loadedData, setLoadedData] = useState<LoadedMonth[]>([]);
   const [loadingState, setLoadingState] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<string[]>([]);
+  const [progress, setProgress] = useState<{ done: number; total: number; current: string }>({
+    done: 0,
+    total: 0,
+    current: "",
+  });
 
   // Small queues load first so Overview renders quickly.
   // Text + Image (chunked, large) load after in the background.
@@ -1180,8 +1212,13 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
 
     const stateKey = `${queue}_${monthKey}`;
     setLoadingState((prev) => ({ ...prev, [stateKey]: true }));
+    // Each large queue file is split into 2 parts; small queues are single files
+    const fileUnits = LARGE_QUEUES.includes(queue) ? 2 : 1;
+    setProgress((p) => ({ ...p, total: p.total + fileUnits, current: `${queue} ${m.label}` }));
     try {
-      const rows = await fetchQueueMonth(queue, m.year, m.month);
+      const rows = await fetchQueueMonth(queue, m.year, m.month, () => {
+        setProgress((p) => ({ ...p, done: p.done + 1, current: `${queue} ${m.label}` }));
+      });
       const tagged = rows.map((r) => ({
         ...r,
         queue_type: r.queue_type || queue,
@@ -1193,6 +1230,8 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
     } catch (e: any) {
       loadedKeysRef.current.delete(cacheKey); // allow retry on error
       setErrors((prev) => [...prev, `${queue} ${m.label}: ${e?.message || String(e)}`]);
+      // Skip this file's units so the bar still completes
+      setProgress((p) => ({ ...p, done: Math.min(p.done + fileUnits, p.total) }));
     } finally {
       setLoadingState((prev) => {
         const n = { ...prev };
@@ -1230,6 +1269,8 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
   const allRows = useMemo(() => loadedData.flatMap((d) => d.rows), [loadedData]);
 
   const isLoading = Object.values(loadingState).some(Boolean);
+  const pctDone =
+    progress.total > 0 ? Math.min(100, Math.round((progress.done / progress.total) * 100)) : 0;
 
   return (
     <>
@@ -1264,7 +1305,22 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
           {allRows.length === 0 && isLoading && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 80, gap: 16 }}>
               <div className="rej-spinner" />
-              <div style={{ color: COLORS.muted, fontSize: 14 }}>Loading rejection data…</div>
+              <div style={{ color: COLORS.muted, fontSize: 14 }}>
+                Loading rejection data… {progress.done}/{progress.total} files ({pctDone}%)
+              </div>
+              <div style={{ width: 320, height: 6, background: "#E5E7EB", borderRadius: 4, overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${pctDone}%`,
+                    height: "100%",
+                    background: COLORS.primary,
+                    transition: "width 0.25s ease",
+                  }}
+                />
+              </div>
+              {progress.current && (
+                <div style={{ color: COLORS.muted, fontSize: 11 }}>Currently fetching: {progress.current}</div>
+              )}
             </div>
           )}
 
@@ -1281,9 +1337,21 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
                 <>
                   <OverviewTab allRows={allRows} selectedMonths={selectedMonths} />
                   {isLoading && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 4px", color: COLORS.muted, fontSize: 13 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 4px", color: COLORS.muted, fontSize: 13 }}>
                       <div className="rej-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                      Loading remaining queues — charts will update automatically…
+                      <span>
+                        Loading remaining queues — {progress.done}/{progress.total} files ({pctDone}%)
+                      </span>
+                      <div style={{ flex: 1, maxWidth: 240, height: 4, background: "#E5E7EB", borderRadius: 4, overflow: "hidden" }}>
+                        <div
+                          style={{
+                            width: `${pctDone}%`,
+                            height: "100%",
+                            background: COLORS.primary,
+                            transition: "width 0.25s ease",
+                          }}
+                        />
+                      </div>
                     </div>
                   )}
                 </>
