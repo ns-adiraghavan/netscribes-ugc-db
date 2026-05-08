@@ -797,16 +797,30 @@ function QueueDeepDive({
   queue,
   allRows,
   selectedMonths,
+  loadingState,
 }: {
   queue: QueueType;
   allRows: UGCRow[];
   selectedMonths: MonthKey[];
+  loadingState: Record<string, boolean>;
 }) {
   const activeMths = MONTHS.filter((m) => selectedMonths.includes(m.key));
 
   const filtered = allRows.filter(
     (r) => r.queue_type === queue && activeMths.some((m) => m.month === r.month)
   );
+
+  // If this queue's data for the selected months hasn't arrived yet, show a
+  // dedicated loading state instead of zeroed-out KPIs/charts.
+  const queueStillLoading = activeMths.some((m) => loadingState[`${queue}_${m.key}`]);
+  if (filtered.length === 0 && queueStillLoading) {
+    return (
+      <div style={{ ...card, textAlign: "center", padding: 60, color: COLORS.muted, fontSize: 14 }}>
+        <div className="rej-spinner" style={{ margin: "0 auto 16px" }} />
+        Loading {QUEUE_LABELS[queue]} data…
+      </div>
+    );
+  }
 
   const rejected = filtered.filter((r) => r.action === "Rejected");
   const approved = filtered.filter((r) => r.action === "Approved");
@@ -1357,6 +1371,7 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
                   queue={tab.toLowerCase() as QueueType}
                   allRows={allRows}
                   selectedMonths={selectedMonths}
+                  loadingState={loadingState}
                 />
               )}
             </>
