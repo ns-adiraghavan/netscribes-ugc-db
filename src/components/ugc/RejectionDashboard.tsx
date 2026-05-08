@@ -369,7 +369,15 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 // ─── Top Rejection Reasons bar chart ─────────────────────────────────────────
 
-function RejectionReasonChart({ rows, color = COLORS.primary }: { rows: UGCRow[]; color?: string }) {
+function RejectionReasonChart({
+  rows,
+  color = COLORS.primary,
+  onReasonClick,
+}: {
+  rows: UGCRow[];
+  color?: string;
+  onReasonClick?: (reason: string) => void;
+}) {
   const rejected = rows.filter((r) => r.action === "Rejected");
   const counts = countBy(rejected, (r) => r.reason);
   const data = topN(
@@ -378,11 +386,26 @@ function RejectionReasonChart({ rows, color = COLORS.primary }: { rows: UGCRow[]
     10
   );
   const max = data[0]?.count || 1;
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {data.map((d, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div
+          key={i}
+          onClick={() => onReasonClick?.(d.reason)}
+          onMouseEnter={() => setHoveredIndex(i)}
+          onMouseLeave={() => setHoveredIndex(null)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            cursor: onReasonClick ? "pointer" : "default",
+            background: hoveredIndex === i ? "#F9FAFB" : "transparent",
+            borderRadius: 4,
+            padding: "2px 4px",
+          }}
+        >
           <div
             style={{
               fontSize: 11,
