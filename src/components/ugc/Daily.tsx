@@ -404,15 +404,18 @@ function DetailTable({
   filtered,
   platform,
   heading,
+  setRecords,
 }: {
   filtered: any[];
   platform: "flipkart" | "myntra";
   heading: React.CSSProperties;
+  setRecords: (fn: (prev: any[]) => any[]) => void;
 }) {
   const cols = platform === "flipkart" ? FK_COLS : MY_COLS;
   const rows = [...filtered].sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
   const [configOpen, setConfigOpen] = useState(false);
+  const [editingRow, setEditingRow] = useState<any | null>(null);
   const [visibility, setVisibility] = useState<Record<string, boolean>>(() => {
     const v: Record<string, boolean> = { tat: true };
     for (const c of cols) v[c.key] = true;
@@ -503,6 +506,7 @@ function DetailTable({
                 </th>
               ))}
               {tatVisible && <th style={th}>TAT</th>}
+              <th style={th}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -527,11 +531,184 @@ function DetailTable({
                       {r.tat ?? "—"}
                     </td>
                   )}
+                  <td style={td}>
+                    <button
+                      onClick={() => setEditingRow(r)}
+                      style={{
+                        fontSize: 11,
+                        padding: "3px 8px",
+                        borderRadius: 4,
+                        border: `1px solid ${COLORS.border}`,
+                        background: "#fff",
+                        color: COLORS.primary,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Edit
+                    </button>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+      </div>
+      {editingRow && (
+        <EditRowModal
+          row={editingRow}
+          platform={platform}
+          onClose={() => setEditingRow(null)}
+          setRecords={setRecords}
+        />
+      )}
+    </div>
+  );
+}
+
+const EDITABLE_FK = [
+  "in_eng_text", "in_hin_text", "in_eng_text_p0", "in_hin_text_p0",
+  "in_eng_image", "in_hin_image", "in_question", "in_answer", "in_video",
+  "out_eng_text", "out_hin_text", "out_eng_text_p0", "out_hin_text_p0",
+  "out_eng_image", "out_hin_image", "out_question", "out_answer", "out_video",
+  "tat", "pending_count", "callout",
+];
+const EDITABLE_MY = [
+  "in_text_total", "in_image_total", "in_video",
+  "out_text_total", "out_image_total", "out_video",
+  "tat", "pending_count", "callout",
+];
+
+function EditRowModal({
+  row,
+  platform,
+  onClose,
+  setRecords,
+}: {
+  row: any;
+  platform: "flipkart" | "myntra";
+  onClose: () => void;
+  setRecords: (fn: (prev: any[]) => any[]) => void;
+}) {
+  const fields = platform === "flipkart" ? EDITABLE_FK : EDITABLE_MY;
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const v: Record<string, string> = {};
+    for (const f of fields) v[f] = row[f] == null ? "" : String(row[f]);
+    return v;
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const handleSave = async () => {
+    setSaving(true);
+    setErr("");
+    const numOrNull = (v: string) => (v === "" ? null : isNaN(Number(v)) ? null : Number(v));
+    const update: any = {};
+    for (const f of fields) {
+      if (f === "tat" || f === "callout") {
+        update[f] = values[f] === "" ? null : values[f];
+      } else {
+        update[f] = numOrNull(values[f]);
+      }
+    }
+    if (platform === "flipkart") {
+      update.in_text_total =
+        (update.in_eng_text ?? 0) + (update.in_hin_text ?? 0) +
+        (update.in_eng_text_p0 ?? 0) + (update.in_hin_text_p0 ?? 0);
+      update.in_image_total = (update.in_eng_image ?? 0) + (update.in_hin_image ?? 0);
+      update.out_text_total =
+        (update.out_eng_text ?? 0) + (update.out_hin_text ?? 0) +
+        (update.out_eng_text_p0 ?? 0) + (update.out_hin_text_p0 ?? 0);
+      update.out_image_total = (update.out_eng_image ?? 0) + (update.out_hin_image ?? 0);
+      update.total_received =
+        update.in_text_total + update.in_image_total +
+        (update.in_question ?? 0) + (update.in_answer ?? 0) + (update.in_video ?? 0);
+      update.total_delivered =
+        update.out_text_total + update.out_image_total +
+        (update.out_question ?? 0) + (update.out_answer ?? 0) + (update.out_video ?? 0);
+    } else {
+      update.total_received =
+        (update.in_text_total ?? 0) + (update.in_image_total ?? 0) + (update.in_video ?? 0);
+      update.total_delivered =
+        (update.out_text_total ?? 0) + (update.out_image_total ?? 0) + (update.out_video ?? 0);
+    }
+
+    const table = platform === "flipkart" ? "flipkart_ugc_entries" : "myntra_ugc_entries";
+    const { error } = await supabase.from(table).update(update).eq("date", row.date);
+    if (error) {
+      setErr(error.message);
+      setSaving(false);
+      return;
+    }
+    setRecords((prev) => prev.map((r) => (r.date === row.date ? { ...r, ...update } : r)));
+    setSaving(false);
+    onClose();
+  };
+
+  const fmtLabel = (k: string) =>
+    k.replace(/^in_/, "In: ").replace(/^out_/, "Out: ").replace(/_/g, " ");
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000,
+        display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 8, padding: 24, maxWidth: 720, width: "100%",
+          maxHeight: "90vh", overflow: "auto",
+        }}
+      >
+        <h3 style={{ fontSize: 16, fontWeight: 600, color: COLORS.text, margin: "0 0 4px" }}>
+          Edit Entry
+        </h3>
+        <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 16 }}>{row.date}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+          {fields.map((f) => (
+            <div key={f}>
+              <label style={{ display: "block", fontSize: 11, color: COLORS.muted, marginBottom: 3, textTransform: "capitalize" }}>
+                {fmtLabel(f)}
+              </label>
+              <input
+                value={values[f]}
+                onChange={(e) => setValues((v) => ({ ...v, [f]: e.target.value }))}
+                style={{
+                  width: "100%", padding: "6px 8px", border: `1px solid ${COLORS.border}`,
+                  borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box",
+                }}
+              />
+            </div>
+          ))}
+        </div>
+        {err && <div style={{ color: COLORS.danger, fontSize: 12, marginTop: 12 }}>{err}</div>}
+        <div style={{ display: "flex", gap: 8, marginTop: 20, justifyContent: "flex-end" }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: "8px 16px", background: "#fff", color: COLORS.text,
+              border: `1px solid ${COLORS.border}`, borderRadius: 6, fontSize: 13,
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              padding: "8px 16px", background: COLORS.primary, color: "#fff",
+              border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600,
+              cursor: saving ? "default" : "pointer", fontFamily: "inherit",
+              opacity: saving ? 0.6 : 1,
+            }}
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
       </div>
     </div>
   );
