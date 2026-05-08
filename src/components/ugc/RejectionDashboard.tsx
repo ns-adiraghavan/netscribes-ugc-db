@@ -1170,26 +1170,7 @@ function FilterBar({
           </button>
         );
       })}
-      <div style={{ marginLeft: "auto", display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {Object.entries(loadingState)
-          .filter(([, v]) => v)
-          .map(([key]) => (
-            <span key={key} style={{ fontSize: 11, color: COLORS.muted, display: "flex", alignItems: "center", gap: 4 }}>
-              <span
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  border: "2px solid #E5E7EB",
-                  borderTopColor: COLORS.primary,
-                  display: "inline-block",
-                  animation: "spin 0.8s linear infinite",
-                }}
-              />
-              Loading {key}…
-            </span>
-          ))}
-      </div>
+      {/* Per-queue spinner list removed — unified progress bar lives below the FilterBar. */}
     </div>
   );
 }
