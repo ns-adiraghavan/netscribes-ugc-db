@@ -849,6 +849,38 @@ function QueueDeepDive({
   const rejRate = filtered.length ? (rejected.length / filtered.length) * 100 : 0;
   const approvalRate = filtered.length ? (approved.length / filtered.length) * 100 : 0;
 
+  // Month-over-month deltas (first vs last selected month)
+  let deltaTotal: { text: string; direction: "neutral" } | undefined;
+  let deltaApproved: { text: string; direction: "neutral" } | undefined;
+  let deltaRejected: { text: string; direction: "neutral" } | undefined;
+  let deltaRate: { text: string; direction: "up-bad" | "down-good" | "neutral" } | undefined;
+  if (selectedMonths.length >= 2) {
+    const sorted = [...selectedMonths].sort();
+    const mFirst = MONTHS.find((m) => m.key === sorted[0]);
+    const mLast = MONTHS.find((m) => m.key === sorted[sorted.length - 1]);
+    if (mFirst && mLast) {
+      const rowsFirst = filtered.filter((r) => r.month === mFirst.month);
+      const rowsLast = filtered.filter((r) => r.month === mLast.month);
+      const aFirst = rowsFirst.filter((r) => r.action === "Approved").length;
+      const aLast = rowsLast.filter((r) => r.action === "Approved").length;
+      const rFirst = rowsFirst.filter((r) => r.action === "Rejected").length;
+      const rLast = rowsLast.filter((r) => r.action === "Rejected").length;
+      const dT = rowsLast.length - rowsFirst.length;
+      const dA = aLast - aFirst;
+      const dR = rLast - rFirst;
+      deltaTotal = { text: dT >= 0 ? `+${fmtNum(dT)}` : fmtNum(dT), direction: "neutral" };
+      deltaApproved = { text: dA >= 0 ? `+${fmtNum(dA)}` : fmtNum(dA), direction: "neutral" };
+      deltaRejected = { text: dR >= 0 ? `+${fmtNum(dR)}` : fmtNum(dR), direction: "neutral" };
+      const firstRate = rowsFirst.length ? (rFirst / rowsFirst.length) * 100 : 0;
+      const lastRate = rowsLast.length ? (rLast / rowsLast.length) * 100 : 0;
+      const dRate = lastRate - firstRate;
+      deltaRate = {
+        text: dRate >= 0 ? `+${dRate.toFixed(1)}pp` : `${dRate.toFixed(1)}pp`,
+        direction: dRate > 0 ? "up-bad" : dRate < 0 ? "down-good" : "neutral",
+      };
+    }
+  }
+
   const monthlyData = MONTHS.filter((m) => selectedMonths.includes(m.key)).map(({ label, month }) => {
     const mRows = filtered.filter((r) => r.month === month);
     const mRej = mRows.filter((r) => r.action === "Rejected").length;
@@ -866,13 +898,14 @@ function QueueDeepDive({
     <div style={{ display: "grid", gap: 24 }}>
       {/* KPI Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
-        <KpiCard label="Total Reviewed" value={filtered.length} />
-        <KpiCard label="Approved" value={approved.length} color={COLORS.success} sub={pct(approved.length, filtered.length)} />
-        <KpiCard label="Rejected" value={rejected.length} color={COLORS.danger} sub={pct(rejected.length, filtered.length)} />
+        <KpiCard label="Total Reviewed" value={filtered.length} delta={deltaTotal} />
+        <KpiCard label="Approved" value={approved.length} color={COLORS.success} sub={pct(approved.length, filtered.length)} delta={deltaApproved} />
+        <KpiCard label="Rejected" value={rejected.length} color={COLORS.danger} sub={pct(rejected.length, filtered.length)} delta={deltaRejected} />
         <KpiCard
           label="Rejection Rate"
           value={`${rejRate.toFixed(1)}%`}
           color={rejRate > 40 ? COLORS.danger : rejRate > 20 ? COLORS.amber : COLORS.success}
+          delta={deltaRate}
         />
       </div>
 
