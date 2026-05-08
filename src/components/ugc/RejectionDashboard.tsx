@@ -1238,7 +1238,10 @@ export default function RejectionDashboard({ onLogout }: { onLogout: () => void 
       });
       const tagged = rows.map((r) => ({
         ...r,
-        queue_type: r.queue_type || queue,
+        // Source files store queue_type capitalized ("Question", "Image", …)
+        // but all filters compare against the lowercase QueueType key, so
+        // force it to the canonical lowercase value here.
+        queue_type: queue,
         month: r.month || m.month,
         year: r.year || m.year,
         month_label: r.month_label || m.label,
