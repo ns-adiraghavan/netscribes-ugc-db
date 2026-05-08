@@ -268,7 +268,15 @@ export default function EntryForm({
       setError("Saved to this session but Supabase write failed: " + sbError.message);
     }
 
-    setRecords((prev) => [...prev, record]);
+    setRecords((prev) => {
+      const idx = prev.findIndex((r) => r.date === record.date);
+      if (idx >= 0) {
+        const next = prev.slice();
+        next[idx] = { ...prev[idx], ...record };
+        return next;
+      }
+      return [...prev, record];
+    });
     setSuccess(`Entry for ${date} saved permanently.`);
     setInflow({});
     setOutflow({});
