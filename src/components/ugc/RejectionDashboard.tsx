@@ -1305,6 +1305,18 @@ function OverviewTab({ allRows, selectedMonths }: { allRows: UGCRow[]; selectedM
         </div>
       </div>
 
+      {/* Weekly per-queue rejection rate */}
+      <div style={card}>
+        <SectionHeading>Weekly Rejection Trend — All Queues</SectionHeading>
+        <WeeklyByQueueChart rows={filtered} />
+      </div>
+
+      {/* Daily combined */}
+      <div style={card}>
+        <SectionHeading>Daily Volume & Rejection Rate</SectionHeading>
+        <DailyTrendChart rows={filtered} />
+      </div>
+
       {/* Volume by queue bar */}
       <div style={card}>
         <SectionHeading>Volume by Queue</SectionHeading>
