@@ -25,6 +25,7 @@ import {
   Line,
   CartesianGrid,
   Legend,
+  ComposedChart,
 } from "recharts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -297,6 +298,155 @@ function countBy<T>(rows: T[], fn: (r: T) => string | null | undefined): Record<
     out[k] = (out[k] || 0) + 1;
   }
   return out;
+}
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+function isoWeekLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  // Shift to Thursday of current ISO week
+  const dayNum = (date.getUTCDay() + 6) % 7; // Mon=0..Sun=6
+  date.setUTCDate(date.getUTCDate() - dayNum + 3);
+  const year = date.getUTCFullYear();
+  const jan1 = new Date(Date.UTC(year, 0, 1));
+  const dayOfYear = Math.floor((date.getTime() - jan1.getTime()) / 86400000) + 1;
+  const leadingDays = (new Date(year, 0, 1).getDay() + 6) % 7;
+  const week = Math.ceil((dayOfYear + leadingDays) / 7);
+  return `W${week}-${String(year).slice(-2)}`;
+}
+
+function weekNumFromLabel(label: string): number {
+  return parseInt(label.slice(1).split("-")[0], 10);
+}
+
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fmtDayLabel(dateStr: string): string {
+  const [, m, d] = dateStr.split("-").map(Number);
+  return `${String(d).padStart(2, "0")} ${MONTH_ABBR[m - 1]}`;
+}
+
+function buildDailyData(rows: UGCRow[]) {
+  const byDay: Record<string, { total: number; rejected: number }> = {};
+  for (const r of rows) {
+    if (!r.date) continue;
+    if (!byDay[r.date]) byDay[r.date] = { total: 0, rejected: 0 };
+    byDay[r.date].total++;
+    if (r.action === "Rejected") byDay[r.date].rejected++;
+  }
+  return Object.entries(byDay)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, s]) => ({
+      date,
+      label: fmtDayLabel(date),
+      volume: s.total,
+      rejectionCount: s.rejected,
+      rejectionRate: s.total ? (s.rejected / s.total) * 100 : 0,
+    }));
+}
+
+function buildWeeklyData(rows: UGCRow[]) {
+  const byWeek: Record<string, { total: number; rejected: number }> = {};
+  for (const r of rows) {
+    if (!r.date) continue;
+    const w = isoWeekLabel(r.date);
+    if (!byWeek[w]) byWeek[w] = { total: 0, rejected: 0 };
+    byWeek[w].total++;
+    if (r.action === "Rejected") byWeek[w].rejected++;
+  }
+  return Object.entries(byWeek)
+    .sort((a, b) => weekNumFromLabel(a[0]) - weekNumFromLabel(b[0]))
+    .map(([label, s]) => ({
+      label,
+      volume: s.total,
+      rejectionCount: s.rejected,
+      rejectionRate: s.total ? (s.rejected / s.total) * 100 : 0,
+    }));
+}
+
+// ─── Daily dual-axis chart (bar volume + line rate) ──────────────────────────
+
+function DailyTrendChart({ rows, barColor = COLORS.primary }: { rows: UGCRow[]; barColor?: string }) {
+  const data = buildDailyData(rows);
+  if (!data.length) {
+    return <div style={{ color: COLORS.muted, fontSize: 13, padding: 20 }}>No daily data available.</div>;
+  }
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 50, left: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+        <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={60} interval="preserveStartEnd" />
+        <YAxis yAxisId="vol" tickFormatter={fmtNum} tick={{ fontSize: 11 }} width={55} />
+        <YAxis yAxisId="rate" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} width={45} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          formatter={(val: any, name: string) =>
+            name === "Rejection Rate" ? `${Number(val).toFixed(1)}%` : fmtNum(Number(val))
+          }
+        />
+        <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+        <Bar yAxisId="vol" dataKey="volume" name="Total Volume" fill={barColor} radius={[3, 3, 0, 0]} />
+        <Line yAxisId="rate" type="monotone" dataKey="rejectionRate" name="Rejection Rate" stroke={COLORS.danger} strokeWidth={2.5} dot={{ r: 2 }} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ─── Weekly rejection-rate per queue (one line per queue) ────────────────────
+
+function WeeklyByQueueChart({ rows }: { rows: UGCRow[] }) {
+  const byWeek: Record<string, Record<string, { total: number; rejected: number }>> = {};
+  for (const r of rows) {
+    if (!r.date) continue;
+    const q = r.queue_type as QueueType;
+    if (!QUEUES.includes(q)) continue;
+    const w = isoWeekLabel(r.date);
+    if (!byWeek[w]) {
+      byWeek[w] = {};
+      for (const qq of QUEUES) byWeek[w][qq] = { total: 0, rejected: 0 };
+    }
+    byWeek[w][q].total++;
+    if (r.action === "Rejected") byWeek[w][q].rejected++;
+  }
+  const data = Object.entries(byWeek)
+    .sort((a, b) => weekNumFromLabel(a[0]) - weekNumFromLabel(b[0]))
+    .map(([label, q]) => {
+      const row: Record<string, any> = { label };
+      for (const queue of QUEUES) {
+        const s = q[queue];
+        row[queue] = s.total ? +((s.rejected / s.total) * 100).toFixed(2) : null;
+      }
+      return row;
+    });
+  if (!data.length) {
+    return <div style={{ color: COLORS.muted, fontSize: 13, padding: 20 }}>No weekly data available.</div>;
+  }
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 50, left: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+        <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={60} />
+        <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} width={45} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          formatter={(v: any) => (v == null ? "—" : `${Number(v).toFixed(1)}%`)}
+        />
+        <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+        {QUEUES.map((q) => (
+          <Line
+            key={q}
+            type="monotone"
+            dataKey={q}
+            name={QUEUE_LABELS[q]}
+            stroke={QUEUE_COLORS[q]}
+            strokeWidth={2}
+            dot={{ r: 2 }}
+            connectNulls
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -771,6 +921,9 @@ type Tab = "Overview" | "Text" | "Image" | "Question" | "Video" | "Answer";
 
 const TABS: Tab[] = ["Overview", "Text", "Image", "Question", "Video", "Answer"];
 
+type SubTab = "Daily" | "Weekly" | "Monthly";
+const SUB_TABS: SubTab[] = ["Daily", "Weekly", "Monthly"];
+
 // ─── Per-Queue Deep Dive ──────────────────────────────────────────────────────
 
 function QueueDeepDive({
@@ -784,6 +937,7 @@ function QueueDeepDive({
   selectedMonths: MonthKey[];
   loadingState: Record<string, boolean>;
 }) {
+  const [subTab, setSubTab] = useState<SubTab>("Monthly");
   const activeMths = MONTHS.filter((m) => selectedMonths.includes(m.key));
 
   const filtered = allRows.filter(
@@ -851,6 +1005,7 @@ function QueueDeepDive({
   });
 
   const qColor = QUEUE_COLORS[queue];
+  const weeklyData = buildWeeklyData(filtered);
 
   return (
     <div style={{ display: "grid", gap: 24 }}>
@@ -867,120 +1022,190 @@ function QueueDeepDive({
         />
       </div>
 
-      {/* Reason Chart + Language */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
-        <div style={card}>
-          <SectionHeading>Top Rejection Reasons</SectionHeading>
-          <RejectionReasonChart
-            rows={filtered}
-            color={qColor}
-          />
-        </div>
-        <div style={card}>
-          <SectionHeading>Language Distribution</SectionHeading>
-          <LanguageDonut rows={filtered} />
-        </div>
+      {/* Sub-tab pill bar */}
+      <div style={{ display: "flex", gap: 8 }}>
+        {SUB_TABS.map((st) => {
+          const active = subTab === st;
+          return (
+            <button
+              key={st}
+              onClick={() => setSubTab(st)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 999,
+                border: "none",
+                background: active ? COLORS.primary : "#F3F4F6",
+                color: active ? "#fff" : COLORS.muted,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {st}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Monthly Trend */}
-      <div style={card}>
-        <SectionHeading>Monthly Trend</SectionHeading>
-        <MonthlyTrendChart dataByMonth={monthlyData} />
-      </div>
-
-      {/* Category breakdown */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <div style={card}>
-          <SectionHeading>Rejection by Category (Top 8)</SectionHeading>
-          <CategoryBreakdown rows={filtered} />
-        </div>
-
-        {/* Queue-specific insight */}
-        {(queue === "text" || queue === "video") && (
-          <div style={card}>
-            <SectionHeading>
-              {queue === "text" ? "Rejection Rate by Star Rating" : "Rejection by Video Duration"}
-            </SectionHeading>
-            {queue === "text" ? <RatingRejectionChart rows={filtered} /> : <VideoDurationChart rows={filtered} />}
-          </div>
-        )}
-
-        {queue === "image" && (
-          <div style={card}>
-            <SectionHeading>Approval vs. Rejection Split</SectionHeading>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingTop: 12 }}>
-              {[
-                { label: "Approved", val: approved.length, color: COLORS.success },
-                { label: "Rejected", val: rejected.length, color: COLORS.danger },
-              ].map((item) => (
-                <div key={item.label}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                    <span style={{ color: item.color, fontWeight: 600 }}>{item.label}</span>
-                    <span>{fmtNum(item.val)} ({pct(item.val, filtered.length)})</span>
-                  </div>
-                  <div style={{ background: "#F3F4F6", borderRadius: 4, height: 14 }}>
-                    <div
-                      style={{
-                        width: `${(item.val / (filtered.length || 1)) * 100}%`,
-                        background: item.color,
-                        borderRadius: 4,
-                        height: "100%",
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-              <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 6, fontWeight: 600 }}>TOP REASON FOR IMAGE REJECTION</div>
-                {(() => {
-                  const counts = countBy(rejected, (r) => r.reason);
-                  const top = topN(Object.entries(counts).map(([r, c]) => ({ r, c })), (x) => x.c, 1)[0];
-                  return top ? (
-                    <div style={{ background: "#FEF2F2", borderRadius: 8, padding: 12, fontSize: 13, color: COLORS.danger, fontWeight: 600 }}>
-                      "{top.r}" — {pct(top.c, rejected.length)} of rejections
-                    </div>
-                  ) : null;
-                })()}
-              </div>
+      {subTab === "Monthly" && (
+        <>
+          {/* Reason Chart + Language */}
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+            <div style={card}>
+              <SectionHeading>Top Rejection Reasons</SectionHeading>
+              <RejectionReasonChart rows={filtered} color={qColor} />
+            </div>
+            <div style={card}>
+              <SectionHeading>Language Distribution</SectionHeading>
+              <LanguageDonut rows={filtered} />
             </div>
           </div>
-        )}
 
-        {(queue === "question" || queue === "answer") && (
+          {/* Monthly Trend */}
           <div style={card}>
-            <SectionHeading>Approval Rate by Category</SectionHeading>
-            {(() => {
-              const cats = countBy(filtered, (r) => r.category);
-              const data = topN(
-                Object.entries(cats).map(([cat, total]) => {
-                  const catRows = filtered.filter((r) => r.category === cat);
-                  const apr = catRows.filter((r) => r.action === "Approved").length;
-                  return { cat, total, approvalRate: total ? (apr / total) * 100 : 0 };
-                }),
-                (x) => x.total,
-                8
-              );
-              return (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={data} layout="vertical">
-                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
-                    <YAxis
-                      type="category"
-                      dataKey="cat"
-                      width={110}
-                      tick={{ fontSize: 10 }}
-                      tickFormatter={(v) => (v.length > 13 ? v.slice(0, 12) + "…" : v)}
-                    />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => `${Number(v).toFixed(1)}%`} />
-                    <Bar dataKey="approvalRate" name="Approval Rate" fill={COLORS.success} radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              );
-            })()}
+            <SectionHeading>Monthly Trend</SectionHeading>
+            <MonthlyTrendChart dataByMonth={monthlyData} />
           </div>
-        )}
-      </div>
 
+          {/* Category breakdown */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={card}>
+              <SectionHeading>Rejection by Category (Top 8)</SectionHeading>
+              <CategoryBreakdown rows={filtered} />
+            </div>
+
+            {(queue === "text" || queue === "video") && (
+              <div style={card}>
+                <SectionHeading>
+                  {queue === "text" ? "Rejection Rate by Star Rating" : "Rejection by Video Duration"}
+                </SectionHeading>
+                {queue === "text" ? <RatingRejectionChart rows={filtered} /> : <VideoDurationChart rows={filtered} />}
+              </div>
+            )}
+
+            {queue === "image" && (
+              <div style={card}>
+                <SectionHeading>Approval vs. Rejection Split</SectionHeading>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingTop: 12 }}>
+                  {[
+                    { label: "Approved", val: approved.length, color: COLORS.success },
+                    { label: "Rejected", val: rejected.length, color: COLORS.danger },
+                  ].map((item) => (
+                    <div key={item.label}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                        <span style={{ color: item.color, fontWeight: 600 }}>{item.label}</span>
+                        <span>{fmtNum(item.val)} ({pct(item.val, filtered.length)})</span>
+                      </div>
+                      <div style={{ background: "#F3F4F6", borderRadius: 4, height: 14 }}>
+                        <div
+                          style={{
+                            width: `${(item.val / (filtered.length || 1)) * 100}%`,
+                            background: item.color,
+                            borderRadius: 4,
+                            height: "100%",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 6, fontWeight: 600 }}>TOP REASON FOR IMAGE REJECTION</div>
+                    {(() => {
+                      const counts = countBy(rejected, (r) => r.reason);
+                      const top = topN(Object.entries(counts).map(([r, c]) => ({ r, c })), (x) => x.c, 1)[0];
+                      return top ? (
+                        <div style={{ background: "#FEF2F2", borderRadius: 8, padding: 12, fontSize: 13, color: COLORS.danger, fontWeight: 600 }}>
+                          "{top.r}" — {pct(top.c, rejected.length)} of rejections
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {(queue === "question" || queue === "answer") && (
+              <div style={card}>
+                <SectionHeading>Approval Rate by Category</SectionHeading>
+                {(() => {
+                  const cats = countBy(filtered, (r) => r.category);
+                  const data = topN(
+                    Object.entries(cats).map(([cat, total]) => {
+                      const catRows = filtered.filter((r) => r.category === cat);
+                      const apr = catRows.filter((r) => r.action === "Approved").length;
+                      return { cat, total, approvalRate: total ? (apr / total) * 100 : 0 };
+                    }),
+                    (x) => x.total,
+                    8
+                  );
+                  return (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={data} layout="vertical">
+                        <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+                        <YAxis
+                          type="category"
+                          dataKey="cat"
+                          width={110}
+                          tick={{ fontSize: 10 }}
+                          tickFormatter={(v) => (v.length > 13 ? v.slice(0, 12) + "…" : v)}
+                        />
+                        <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => `${Number(v).toFixed(1)}%`} />
+                        <Bar dataKey="approvalRate" name="Approval Rate" fill={COLORS.success} radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {subTab === "Weekly" && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+            <div style={card}>
+              <SectionHeading>Top Rejection Reasons</SectionHeading>
+              <RejectionReasonChart rows={filtered} color={qColor} />
+            </div>
+            <div style={card}>
+              <SectionHeading>Language Distribution</SectionHeading>
+              <LanguageDonut rows={filtered} />
+            </div>
+          </div>
+
+          <div style={card}>
+            <SectionHeading>Weekly Trend</SectionHeading>
+            <MonthlyTrendChart dataByMonth={weeklyData} />
+          </div>
+
+          <div style={card}>
+            <SectionHeading>Rejection by Category (Top 8)</SectionHeading>
+            <CategoryBreakdown rows={filtered} />
+          </div>
+        </>
+      )}
+
+      {subTab === "Daily" && (
+        <>
+          <div style={card}>
+            <SectionHeading>Daily Volume & Rejection Rate</SectionHeading>
+            <DailyTrendChart rows={filtered} barColor={qColor} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+            <div style={card}>
+              <SectionHeading>Top Rejection Reasons</SectionHeading>
+              <RejectionReasonChart rows={filtered} color={qColor} />
+            </div>
+            <div style={card}>
+              <SectionHeading>Language Distribution</SectionHeading>
+              <LanguageDonut rows={filtered} />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1078,6 +1303,18 @@ function OverviewTab({ allRows, selectedMonths }: { allRows: UGCRow[]; selectedM
           <SectionHeading>Monthly Volume & Rejection Trend (All Queues)</SectionHeading>
           <MonthlyTrendChart dataByMonth={monthlyData} />
         </div>
+      </div>
+
+      {/* Weekly per-queue rejection rate */}
+      <div style={card}>
+        <SectionHeading>Weekly Rejection Trend — All Queues</SectionHeading>
+        <WeeklyByQueueChart rows={filtered} />
+      </div>
+
+      {/* Daily combined */}
+      <div style={card}>
+        <SectionHeading>Daily Volume & Rejection Rate</SectionHeading>
+        <DailyTrendChart rows={filtered} />
       </div>
 
       {/* Volume by queue bar */}
