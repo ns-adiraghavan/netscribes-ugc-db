@@ -921,6 +921,9 @@ type Tab = "Overview" | "Text" | "Image" | "Question" | "Video" | "Answer";
 
 const TABS: Tab[] = ["Overview", "Text", "Image", "Question", "Video", "Answer"];
 
+type SubTab = "Daily" | "Weekly" | "Monthly";
+const SUB_TABS: SubTab[] = ["Daily", "Weekly", "Monthly"];
+
 // ─── Per-Queue Deep Dive ──────────────────────────────────────────────────────
 
 function QueueDeepDive({
