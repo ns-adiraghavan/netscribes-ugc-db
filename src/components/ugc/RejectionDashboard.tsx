@@ -206,6 +206,7 @@ async function fetchQueueMonth(
     year:            r.year            ?? null,
     month_label:     r.month_label     ?? null,
     duration_seconds:r.duration_seconds ?? null,
+    date:            r.date            ?? null,
   });
 
   // ── Helper: decompress + parse + project a single Uint8Array ─────────────
@@ -372,11 +373,9 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 function RejectionReasonChart({
   rows,
   color = COLORS.primary,
-  onReasonClick,
 }: {
   rows: UGCRow[];
   color?: string;
-  onReasonClick?: (reason: string) => void;
 }) {
   const rejected = rows.filter((r) => r.action === "Rejected");
   const counts = countBy(rejected, (r) => r.reason);
@@ -393,14 +392,13 @@ function RejectionReasonChart({
       {data.map((d, i) => (
         <div
           key={i}
-          onClick={() => onReasonClick?.(d.reason)}
           onMouseEnter={() => setHoveredIndex(i)}
           onMouseLeave={() => setHoveredIndex(null)}
           style={{
             display: "flex",
             alignItems: "center",
             gap: 10,
-            cursor: onReasonClick ? "pointer" : "default",
+            cursor: "default",
             background: hoveredIndex === i ? "#F9FAFB" : "transparent",
             borderRadius: 4,
             padding: "2px 4px",
