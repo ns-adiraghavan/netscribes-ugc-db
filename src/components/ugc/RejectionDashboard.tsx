@@ -25,6 +25,7 @@ import {
   Line,
   CartesianGrid,
   Legend,
+  ComposedChart,
 } from "recharts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -297,6 +298,155 @@ function countBy<T>(rows: T[], fn: (r: T) => string | null | undefined): Record<
     out[k] = (out[k] || 0) + 1;
   }
   return out;
+}
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+function isoWeekLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  // Shift to Thursday of current ISO week
+  const dayNum = (date.getUTCDay() + 6) % 7; // Mon=0..Sun=6
+  date.setUTCDate(date.getUTCDate() - dayNum + 3);
+  const year = date.getUTCFullYear();
+  const jan1 = new Date(Date.UTC(year, 0, 1));
+  const dayOfYear = Math.floor((date.getTime() - jan1.getTime()) / 86400000) + 1;
+  const leadingDays = (new Date(year, 0, 1).getDay() + 6) % 7;
+  const week = Math.ceil((dayOfYear + leadingDays) / 7);
+  return `W${week}-${String(year).slice(-2)}`;
+}
+
+function weekNumFromLabel(label: string): number {
+  return parseInt(label.slice(1).split("-")[0], 10);
+}
+
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fmtDayLabel(dateStr: string): string {
+  const [, m, d] = dateStr.split("-").map(Number);
+  return `${String(d).padStart(2, "0")} ${MONTH_ABBR[m - 1]}`;
+}
+
+function buildDailyData(rows: UGCRow[]) {
+  const byDay: Record<string, { total: number; rejected: number }> = {};
+  for (const r of rows) {
+    if (!r.date) continue;
+    if (!byDay[r.date]) byDay[r.date] = { total: 0, rejected: 0 };
+    byDay[r.date].total++;
+    if (r.action === "Rejected") byDay[r.date].rejected++;
+  }
+  return Object.entries(byDay)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, s]) => ({
+      date,
+      label: fmtDayLabel(date),
+      volume: s.total,
+      rejectionCount: s.rejected,
+      rejectionRate: s.total ? (s.rejected / s.total) * 100 : 0,
+    }));
+}
+
+function buildWeeklyData(rows: UGCRow[]) {
+  const byWeek: Record<string, { total: number; rejected: number }> = {};
+  for (const r of rows) {
+    if (!r.date) continue;
+    const w = isoWeekLabel(r.date);
+    if (!byWeek[w]) byWeek[w] = { total: 0, rejected: 0 };
+    byWeek[w].total++;
+    if (r.action === "Rejected") byWeek[w].rejected++;
+  }
+  return Object.entries(byWeek)
+    .sort((a, b) => weekNumFromLabel(a[0]) - weekNumFromLabel(b[0]))
+    .map(([label, s]) => ({
+      label,
+      volume: s.total,
+      rejectionCount: s.rejected,
+      rejectionRate: s.total ? (s.rejected / s.total) * 100 : 0,
+    }));
+}
+
+// ─── Daily dual-axis chart (bar volume + line rate) ──────────────────────────
+
+function DailyTrendChart({ rows, barColor = COLORS.primary }: { rows: UGCRow[]; barColor?: string }) {
+  const data = buildDailyData(rows);
+  if (!data.length) {
+    return <div style={{ color: COLORS.muted, fontSize: 13, padding: 20 }}>No daily data available.</div>;
+  }
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 50, left: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+        <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={60} interval="preserveStartEnd" />
+        <YAxis yAxisId="vol" tickFormatter={fmtNum} tick={{ fontSize: 11 }} width={55} />
+        <YAxis yAxisId="rate" orientation="right" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} width={45} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          formatter={(val: any, name: string) =>
+            name === "Rejection Rate" ? `${Number(val).toFixed(1)}%` : fmtNum(Number(val))
+          }
+        />
+        <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+        <Bar yAxisId="vol" dataKey="volume" name="Total Volume" fill={barColor} radius={[3, 3, 0, 0]} />
+        <Line yAxisId="rate" type="monotone" dataKey="rejectionRate" name="Rejection Rate" stroke={COLORS.danger} strokeWidth={2.5} dot={{ r: 2 }} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ─── Weekly rejection-rate per queue (one line per queue) ────────────────────
+
+function WeeklyByQueueChart({ rows }: { rows: UGCRow[] }) {
+  const byWeek: Record<string, Record<string, { total: number; rejected: number }>> = {};
+  for (const r of rows) {
+    if (!r.date) continue;
+    const q = r.queue_type as QueueType;
+    if (!QUEUES.includes(q)) continue;
+    const w = isoWeekLabel(r.date);
+    if (!byWeek[w]) {
+      byWeek[w] = {};
+      for (const qq of QUEUES) byWeek[w][qq] = { total: 0, rejected: 0 };
+    }
+    byWeek[w][q].total++;
+    if (r.action === "Rejected") byWeek[w][q].rejected++;
+  }
+  const data = Object.entries(byWeek)
+    .sort((a, b) => weekNumFromLabel(a[0]) - weekNumFromLabel(b[0]))
+    .map(([label, q]) => {
+      const row: Record<string, any> = { label };
+      for (const queue of QUEUES) {
+        const s = q[queue];
+        row[queue] = s.total ? +((s.rejected / s.total) * 100).toFixed(2) : null;
+      }
+      return row;
+    });
+  if (!data.length) {
+    return <div style={{ color: COLORS.muted, fontSize: 13, padding: 20 }}>No weekly data available.</div>;
+  }
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 50, left: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+        <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={60} />
+        <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} width={45} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          formatter={(v: any) => (v == null ? "—" : `${Number(v).toFixed(1)}%`)}
+        />
+        <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+        {QUEUES.map((q) => (
+          <Line
+            key={q}
+            type="monotone"
+            dataKey={q}
+            name={QUEUE_LABELS[q]}
+            stroke={QUEUE_COLORS[q]}
+            strokeWidth={2}
+            dot={{ r: 2 }}
+            connectNulls
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
