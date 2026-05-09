@@ -521,107 +521,6 @@ function CategoryBreakdown({ rows }: { rows: UGCRow[] }) {
   );
 }
 
-// ─── Agent performance table ──────────────────────────────────────────────────
-
-function AgentTable({
-  rows,
-  activeReason,
-  onClearReason,
-}: {
-  rows: UGCRow[];
-  activeReason?: string | null;
-  onClearReason?: () => void;
-}) {
-  const byAgent: Record<string, { total: number; rejected: number }> = {};
-  for (const r of rows) {
-    const name = r.agent_name || "Unknown";
-    if (!byAgent[name]) byAgent[name] = { total: 0, rejected: 0 };
-    byAgent[name].total++;
-    if (r.action === "Rejected") byAgent[name].rejected++;
-  }
-  const agents = topN(
-    Object.entries(byAgent).map(([name, s]) => ({
-      name,
-      total: s.total,
-      rejected: s.rejected,
-      rate: (s.rejected / s.total) * 100,
-    })),
-    (x) => x.total,
-    12
-  );
-
-  return (
-    <div style={{ overflowX: "auto" }}>
-      {activeReason && (
-        <div style={{ marginBottom: 10 }}>
-          <span
-            style={{
-              background: "#EFF6FF",
-              color: "#1A56DB",
-              borderRadius: 6,
-              fontSize: 11,
-              padding: "3px 10px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            Filtered: "{activeReason}"
-            <span
-              onClick={onClearReason}
-              style={{ cursor: "pointer", fontWeight: 700, marginLeft: 4 }}
-            >
-              ×
-            </span>
-          </span>
-        </div>
-      )}
-      {rows.length === 0 && activeReason ? (
-        <div style={{ color: "#6B7280", fontSize: 13, padding: "20px 0", textAlign: "center" }}>
-          No agents found for this rejection reason.
-        </div>
-      ) : (
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-        <thead>
-          <tr style={{ borderBottom: `2px solid ${COLORS.border}` }}>
-            {["Agent", "Total", "Rejected", "Rejection Rate"].map((h) => (
-              <th
-                key={h}
-                style={{ padding: "8px 12px", textAlign: h === "Agent" ? "left" : "right", color: COLORS.muted, fontWeight: 600 }}
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {agents.map((a, i) => (
-            <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-              <td style={{ padding: "8px 12px", fontWeight: 500 }}>{a.name}</td>
-              <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmtNum(a.total)}</td>
-              <td style={{ padding: "8px 12px", textAlign: "right", color: COLORS.danger }}>{fmtNum(a.rejected)}</td>
-              <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                <span
-                  style={{
-                    background: a.rate > 40 ? "#FEE2E2" : a.rate > 20 ? "#FEF3C7" : "#D1FAE5",
-                    color: a.rate > 40 ? COLORS.danger : a.rate > 20 ? COLORS.amber : COLORS.success,
-                    padding: "2px 8px",
-                    borderRadius: 6,
-                    fontWeight: 600,
-                  }}
-                >
-                  {a.rate.toFixed(1)}%
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      )}
-    </div>
-  );
-}
-
 // ─── Language Distribution ────────────────────────────────────────────────────
 
 function LanguageDonut({ rows }: { rows: UGCRow[] }) {
@@ -885,7 +784,6 @@ function QueueDeepDive({
   selectedMonths: MonthKey[];
   loadingState: Record<string, boolean>;
 }) {
-  const [activeReason, setActiveReason] = useState<string | null>(null);
   const activeMths = MONTHS.filter((m) => selectedMonths.includes(m.key));
 
   const filtered = allRows.filter(
@@ -976,7 +874,6 @@ function QueueDeepDive({
           <RejectionReasonChart
             rows={filtered}
             color={qColor}
-            onReasonClick={(r) => setActiveReason((prev) => (prev === r ? null : r))}
           />
         </div>
         <div style={card}>
@@ -1084,19 +981,6 @@ function QueueDeepDive({
         )}
       </div>
 
-      {/* Agent Performance */}
-      <div style={card}>
-        <SectionHeading>Agent Performance — {QUEUE_LABELS[queue]} Queue</SectionHeading>
-        <AgentTable
-          rows={
-            activeReason
-              ? filtered.filter((r) => r.action === "Rejected" && r.reason === activeReason)
-              : filtered
-          }
-          activeReason={activeReason}
-          onClearReason={() => setActiveReason(null)}
-        />
-      </div>
     </div>
   );
 }
