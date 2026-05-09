@@ -342,9 +342,9 @@ export default function Trends({ records, platform }: { records: any[]; platform
                   <Line
                     type="monotone"
                     dataKey="tat"
-                    stroke={COLORS.danger}
+                    stroke="#7E3AF2"
                     strokeWidth={2}
-                    dot={{ r: 3, fill: COLORS.danger }}
+                    dot={{ r: 3, fill: "#7E3AF2" }}
                     connectNulls
                   />
                 </LineChart>
