@@ -937,6 +937,7 @@ function QueueDeepDive({
   selectedMonths: MonthKey[];
   loadingState: Record<string, boolean>;
 }) {
+  const [subTab, setSubTab] = useState<SubTab>("Monthly");
   const activeMths = MONTHS.filter((m) => selectedMonths.includes(m.key));
 
   const filtered = allRows.filter(
@@ -1004,6 +1005,7 @@ function QueueDeepDive({
   });
 
   const qColor = QUEUE_COLORS[queue];
+  const weeklyData = buildWeeklyData(filtered);
 
   return (
     <div style={{ display: "grid", gap: 24 }}>
@@ -1020,120 +1022,190 @@ function QueueDeepDive({
         />
       </div>
 
-      {/* Reason Chart + Language */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
-        <div style={card}>
-          <SectionHeading>Top Rejection Reasons</SectionHeading>
-          <RejectionReasonChart
-            rows={filtered}
-            color={qColor}
-          />
-        </div>
-        <div style={card}>
-          <SectionHeading>Language Distribution</SectionHeading>
-          <LanguageDonut rows={filtered} />
-        </div>
+      {/* Sub-tab pill bar */}
+      <div style={{ display: "flex", gap: 8 }}>
+        {SUB_TABS.map((st) => {
+          const active = subTab === st;
+          return (
+            <button
+              key={st}
+              onClick={() => setSubTab(st)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 999,
+                border: "none",
+                background: active ? COLORS.primary : "#F3F4F6",
+                color: active ? "#fff" : COLORS.muted,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {st}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Monthly Trend */}
-      <div style={card}>
-        <SectionHeading>Monthly Trend</SectionHeading>
-        <MonthlyTrendChart dataByMonth={monthlyData} />
-      </div>
-
-      {/* Category breakdown */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <div style={card}>
-          <SectionHeading>Rejection by Category (Top 8)</SectionHeading>
-          <CategoryBreakdown rows={filtered} />
-        </div>
-
-        {/* Queue-specific insight */}
-        {(queue === "text" || queue === "video") && (
-          <div style={card}>
-            <SectionHeading>
-              {queue === "text" ? "Rejection Rate by Star Rating" : "Rejection by Video Duration"}
-            </SectionHeading>
-            {queue === "text" ? <RatingRejectionChart rows={filtered} /> : <VideoDurationChart rows={filtered} />}
-          </div>
-        )}
-
-        {queue === "image" && (
-          <div style={card}>
-            <SectionHeading>Approval vs. Rejection Split</SectionHeading>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingTop: 12 }}>
-              {[
-                { label: "Approved", val: approved.length, color: COLORS.success },
-                { label: "Rejected", val: rejected.length, color: COLORS.danger },
-              ].map((item) => (
-                <div key={item.label}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                    <span style={{ color: item.color, fontWeight: 600 }}>{item.label}</span>
-                    <span>{fmtNum(item.val)} ({pct(item.val, filtered.length)})</span>
-                  </div>
-                  <div style={{ background: "#F3F4F6", borderRadius: 4, height: 14 }}>
-                    <div
-                      style={{
-                        width: `${(item.val / (filtered.length || 1)) * 100}%`,
-                        background: item.color,
-                        borderRadius: 4,
-                        height: "100%",
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-              <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 6, fontWeight: 600 }}>TOP REASON FOR IMAGE REJECTION</div>
-                {(() => {
-                  const counts = countBy(rejected, (r) => r.reason);
-                  const top = topN(Object.entries(counts).map(([r, c]) => ({ r, c })), (x) => x.c, 1)[0];
-                  return top ? (
-                    <div style={{ background: "#FEF2F2", borderRadius: 8, padding: 12, fontSize: 13, color: COLORS.danger, fontWeight: 600 }}>
-                      "{top.r}" — {pct(top.c, rejected.length)} of rejections
-                    </div>
-                  ) : null;
-                })()}
-              </div>
+      {subTab === "Monthly" && (
+        <>
+          {/* Reason Chart + Language */}
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+            <div style={card}>
+              <SectionHeading>Top Rejection Reasons</SectionHeading>
+              <RejectionReasonChart rows={filtered} color={qColor} />
+            </div>
+            <div style={card}>
+              <SectionHeading>Language Distribution</SectionHeading>
+              <LanguageDonut rows={filtered} />
             </div>
           </div>
-        )}
 
-        {(queue === "question" || queue === "answer") && (
+          {/* Monthly Trend */}
           <div style={card}>
-            <SectionHeading>Approval Rate by Category</SectionHeading>
-            {(() => {
-              const cats = countBy(filtered, (r) => r.category);
-              const data = topN(
-                Object.entries(cats).map(([cat, total]) => {
-                  const catRows = filtered.filter((r) => r.category === cat);
-                  const apr = catRows.filter((r) => r.action === "Approved").length;
-                  return { cat, total, approvalRate: total ? (apr / total) * 100 : 0 };
-                }),
-                (x) => x.total,
-                8
-              );
-              return (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={data} layout="vertical">
-                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
-                    <YAxis
-                      type="category"
-                      dataKey="cat"
-                      width={110}
-                      tick={{ fontSize: 10 }}
-                      tickFormatter={(v) => (v.length > 13 ? v.slice(0, 12) + "…" : v)}
-                    />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => `${Number(v).toFixed(1)}%`} />
-                    <Bar dataKey="approvalRate" name="Approval Rate" fill={COLORS.success} radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              );
-            })()}
+            <SectionHeading>Monthly Trend</SectionHeading>
+            <MonthlyTrendChart dataByMonth={monthlyData} />
           </div>
-        )}
-      </div>
 
+          {/* Category breakdown */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={card}>
+              <SectionHeading>Rejection by Category (Top 8)</SectionHeading>
+              <CategoryBreakdown rows={filtered} />
+            </div>
+
+            {(queue === "text" || queue === "video") && (
+              <div style={card}>
+                <SectionHeading>
+                  {queue === "text" ? "Rejection Rate by Star Rating" : "Rejection by Video Duration"}
+                </SectionHeading>
+                {queue === "text" ? <RatingRejectionChart rows={filtered} /> : <VideoDurationChart rows={filtered} />}
+              </div>
+            )}
+
+            {queue === "image" && (
+              <div style={card}>
+                <SectionHeading>Approval vs. Rejection Split</SectionHeading>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingTop: 12 }}>
+                  {[
+                    { label: "Approved", val: approved.length, color: COLORS.success },
+                    { label: "Rejected", val: rejected.length, color: COLORS.danger },
+                  ].map((item) => (
+                    <div key={item.label}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                        <span style={{ color: item.color, fontWeight: 600 }}>{item.label}</span>
+                        <span>{fmtNum(item.val)} ({pct(item.val, filtered.length)})</span>
+                      </div>
+                      <div style={{ background: "#F3F4F6", borderRadius: 4, height: 14 }}>
+                        <div
+                          style={{
+                            width: `${(item.val / (filtered.length || 1)) * 100}%`,
+                            background: item.color,
+                            borderRadius: 4,
+                            height: "100%",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 6, fontWeight: 600 }}>TOP REASON FOR IMAGE REJECTION</div>
+                    {(() => {
+                      const counts = countBy(rejected, (r) => r.reason);
+                      const top = topN(Object.entries(counts).map(([r, c]) => ({ r, c })), (x) => x.c, 1)[0];
+                      return top ? (
+                        <div style={{ background: "#FEF2F2", borderRadius: 8, padding: 12, fontSize: 13, color: COLORS.danger, fontWeight: 600 }}>
+                          "{top.r}" — {pct(top.c, rejected.length)} of rejections
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {(queue === "question" || queue === "answer") && (
+              <div style={card}>
+                <SectionHeading>Approval Rate by Category</SectionHeading>
+                {(() => {
+                  const cats = countBy(filtered, (r) => r.category);
+                  const data = topN(
+                    Object.entries(cats).map(([cat, total]) => {
+                      const catRows = filtered.filter((r) => r.category === cat);
+                      const apr = catRows.filter((r) => r.action === "Approved").length;
+                      return { cat, total, approvalRate: total ? (apr / total) * 100 : 0 };
+                    }),
+                    (x) => x.total,
+                    8
+                  );
+                  return (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={data} layout="vertical">
+                        <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+                        <YAxis
+                          type="category"
+                          dataKey="cat"
+                          width={110}
+                          tick={{ fontSize: 10 }}
+                          tickFormatter={(v) => (v.length > 13 ? v.slice(0, 12) + "…" : v)}
+                        />
+                        <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => `${Number(v).toFixed(1)}%`} />
+                        <Bar dataKey="approvalRate" name="Approval Rate" fill={COLORS.success} radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {subTab === "Weekly" && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+            <div style={card}>
+              <SectionHeading>Top Rejection Reasons</SectionHeading>
+              <RejectionReasonChart rows={filtered} color={qColor} />
+            </div>
+            <div style={card}>
+              <SectionHeading>Language Distribution</SectionHeading>
+              <LanguageDonut rows={filtered} />
+            </div>
+          </div>
+
+          <div style={card}>
+            <SectionHeading>Weekly Trend</SectionHeading>
+            <MonthlyTrendChart dataByMonth={weeklyData} />
+          </div>
+
+          <div style={card}>
+            <SectionHeading>Rejection by Category (Top 8)</SectionHeading>
+            <CategoryBreakdown rows={filtered} />
+          </div>
+        </>
+      )}
+
+      {subTab === "Daily" && (
+        <>
+          <div style={card}>
+            <SectionHeading>Daily Volume & Rejection Rate</SectionHeading>
+            <DailyTrendChart rows={filtered} barColor={qColor} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+            <div style={card}>
+              <SectionHeading>Top Rejection Reasons</SectionHeading>
+              <RejectionReasonChart rows={filtered} color={qColor} />
+            </div>
+            <div style={card}>
+              <SectionHeading>Language Distribution</SectionHeading>
+              <LanguageDonut rows={filtered} />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
