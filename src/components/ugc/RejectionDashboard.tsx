@@ -386,7 +386,7 @@ function DailyTrendChart({ rows, barColor = COLORS.primary }: { rows: UGCRow[]; 
         />
         <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
         <Bar yAxisId="vol" dataKey="volume" name="Total Volume" fill={barColor} radius={[3, 3, 0, 0]} />
-        <Line yAxisId="rate" type="monotone" dataKey="rejectionRate" name="Rejection Rate" stroke={COLORS.danger} strokeWidth={2.5} dot={{ r: 2 }} />
+        <Line yAxisId="rate" type="monotone" dataKey="rejectionRate" name="Rejection Rate" stroke="#7E3AF2" strokeWidth={2.5} dot={{ r: 2 }} />
       </ComposedChart>
     </ResponsiveContainer>
   );
@@ -623,7 +623,7 @@ function MonthlyTrendChart({
           type="monotone"
           dataKey="rejectionRate"
           name="Rejection Rate"
-          stroke={COLORS.danger}
+          stroke="#7E3AF2"
           strokeWidth={2.5}
           dot={{ r: 4 }}
         />
