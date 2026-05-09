@@ -291,7 +291,7 @@ function ModuleSelect({ onSelect }: { onSelect: (m: ModuleKey) => void }) {
           maxWidth: 1100,
         }}
       >
-        {MODULES.map((m) => (
+        {MODULES.filter((m) => m.key !== "myntra").map((m) => (
           <button
             key={m.key}
             onClick={() => onSelect(m.key)}
@@ -607,7 +607,7 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#6B7280" }} />
               <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} tickFormatter={(v) => `${v}%`} />
               <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [`${Number(v).toFixed(1)}%`, "Days > 24h"]} />
-              <Line type="monotone" dataKey="over24Pct" stroke="#E02424" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="over24Pct" stroke="#7E3AF2" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
