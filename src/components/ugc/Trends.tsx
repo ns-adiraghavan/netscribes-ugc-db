@@ -313,6 +313,17 @@ export default function Trends({ records, platform }: { records: any[]; platform
 
       {view === "monthly" ? (
         <>
+          <SummaryTable
+            label="Month"
+            rows={monthly.map((m) => ({
+              key: m.ym,
+              label: m.month,
+              avgInflow: m.avgInflow,
+              avgOutflow: m.avgOutflow,
+              tat: m.tat,
+              over24Pct: m.over24Pct,
+            }))}
+          />
           <div style={card}>
             <h3 style={heading}>Monthly Inflow vs Outflow — Average (per day) — {combinedLabel}</h3>
             <div style={{ width: "100%", height: 320 }}>
@@ -417,6 +428,17 @@ export default function Trends({ records, platform }: { records: any[]; platform
         </>
       ) : (
         <>
+          <SummaryTable
+            label="Week"
+            rows={weekly.map((w) => ({
+              key: w.week,
+              label: w.week,
+              avgInflow: w.avgInflow,
+              avgOutflow: w.avgOutflow,
+              tat: w.tat,
+              over24Pct: w.over24Pct,
+            }))}
+          />
           <div style={card}>
             <h3 style={heading}>Weekly Inflow vs Outflow — Average (per day) — {combinedLabel}</h3>
             <div style={{ width: "100%", height: 320 }}>
