@@ -210,22 +210,35 @@ export default function Trends({ records, platform }: { records: any[]; platform
         ym,
         inflow: v.inflow,
         outflow: v.outflow,
+        net: v.inflow - v.outflow,
         tat: v.tatCount ? v.tatSum / v.tatCount : null,
       }));
   }, [yearFiltered, slicerKeys]);
 
   const weekly = useMemo(() => {
-    const map: Record<string, { inflow: number; outflow: number; n: number }> = {};
+    const map: Record<string, { inflow: number; outflow: number; n: number; tatSum: number; tatCount: number }> = {};
     for (const r of yearFiltered) {
       const w = r.week;
       if (!w) continue;
-      if (!map[w]) map[w] = { inflow: 0, outflow: 0, n: 0 };
+      if (!map[w]) map[w] = { inflow: 0, outflow: 0, n: 0, tatSum: 0, tatCount: 0 };
       map[w].inflow += combinedInflow(r);
       map[w].outflow += combinedOutflow(r);
       map[w].n++;
+      const t = tatToHours(r.tat);
+      if (t != null && !isNaN(t)) {
+        map[w].tatSum += t;
+        map[w].tatCount++;
+      }
     }
     return Object.entries(map)
-      .map(([week, v]) => ({ week, n: weekNum(week), inflow: v.inflow, outflow: v.outflow }))
+      .map(([week, v]) => ({
+        week,
+        n: weekNum(week),
+        inflow: v.inflow,
+        outflow: v.outflow,
+        net: v.inflow - v.outflow,
+        tat: v.tatCount ? v.tatSum / v.tatCount : null,
+      }))
       .sort((a, b) => a.n - b.n);
   }, [yearFiltered, slicerKeys]);
 
@@ -351,6 +364,25 @@ export default function Trends({ records, platform }: { records: any[]; platform
               </ResponsiveContainer>
             </div>
           </div>
+
+          <div style={card}>
+            <h3 style={heading}>Monthly Net Volume (Inflow − Outflow) — {combinedLabel}</h3>
+            <div style={{ width: "100%", height: 240 }}>
+              <ResponsiveContainer>
+                <LineChart data={monthly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                  <CartesianGrid stroke={COLORS.border} vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: COLORS.muted }} />
+                  <YAxis tickFormatter={compactNum} tick={{ fontSize: 11, fill: COLORS.muted }} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(v: any) => [Number(v).toLocaleString(), "Net"]}
+                  />
+                  <ReferenceLine y={0} stroke={COLORS.muted} strokeDasharray="2 4" />
+                  <Line type="monotone" dataKey="net" name="Net" stroke={COLORS.text} strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </>
       ) : (
         <>
@@ -404,6 +436,56 @@ export default function Trends({ records, platform }: { records: any[]; platform
                     strokeDasharray="6 4"
                     dot={false}
                   />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div style={card}>
+            <h3 style={heading}>Weekly Avg TAT (hours) — all content types</h3>
+            <div style={{ width: "100%", height: 240 }}>
+              <ResponsiveContainer>
+                <LineChart data={weekly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                  <CartesianGrid stroke={COLORS.border} vertical={false} />
+                  <XAxis dataKey="week" tick={{ fontSize: 11, fill: COLORS.muted }} interval={3} />
+                  <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} tickFormatter={(v) => `${v}h`} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(v: any) => [v == null ? "—" : `${Number(v).toFixed(1)}h`, "Avg TAT"]}
+                  />
+                  <ReferenceLine
+                    y={24}
+                    stroke="#9CA3AF"
+                    strokeDasharray="4 4"
+                    label={{ value: "24h SLA", position: "right", fill: COLORS.muted, fontSize: 11 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="tat"
+                    stroke="#7E3AF2"
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div style={card}>
+            <h3 style={heading}>Weekly Net Volume (Inflow − Outflow) — {combinedLabel}</h3>
+            <div style={{ width: "100%", height: 240 }}>
+              <ResponsiveContainer>
+                <LineChart data={weekly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                  <CartesianGrid stroke={COLORS.border} vertical={false} />
+                  <XAxis dataKey="week" tick={{ fontSize: 11, fill: COLORS.muted }} interval={3} />
+                  <YAxis tickFormatter={compactNum} tick={{ fontSize: 11, fill: COLORS.muted }} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(v: any) => [Number(v).toLocaleString(), "Net"]}
+                  />
+                  <ReferenceLine y={0} stroke={COLORS.muted} strokeDasharray="2 4" />
+                  <Line type="monotone" dataKey="net" name="Net" stroke={COLORS.text} strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
