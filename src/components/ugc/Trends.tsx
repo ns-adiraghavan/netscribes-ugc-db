@@ -190,11 +190,11 @@ export default function Trends({ records, platform }: { records: any[]; platform
   }, [records, year]);
 
   const monthly = useMemo(() => {
-    const map: Record<string, { inflow: number; outflow: number; days: number; tatSum: number; tatCount: number }> = {};
+    const map: Record<string, { inflow: number; outflow: number; days: number; tatSum: number; tatCount: number; over24: number }> = {};
     for (const r of yearFiltered) {
       if (!r.date) continue;
       const ym = String(r.date).slice(0, 7);
-      if (!map[ym]) map[ym] = { inflow: 0, outflow: 0, days: 0, tatSum: 0, tatCount: 0 };
+      if (!map[ym]) map[ym] = { inflow: 0, outflow: 0, days: 0, tatSum: 0, tatCount: 0, over24: 0 };
       map[ym].inflow += combinedInflow(r);
       map[ym].outflow += combinedOutflow(r);
       map[ym].days++;
@@ -202,6 +202,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
       if (t != null && !isNaN(t)) {
         map[ym].tatSum += t;
         map[ym].tatCount++;
+        if (t > 24) map[ym].over24++;
       }
     }
     return Object.entries(map)
@@ -215,15 +216,17 @@ export default function Trends({ records, platform }: { records: any[]; platform
         avgOutflow: v.days ? v.outflow / v.days : 0,
         net: v.inflow - v.outflow,
         tat: v.tatCount ? v.tatSum / v.tatCount : null,
+        days: v.days,
+        over24Pct: v.tatCount ? (v.over24 / v.tatCount) * 100 : 0,
       }));
   }, [yearFiltered, slicerKeys]);
 
   const weekly = useMemo(() => {
-    const map: Record<string, { inflow: number; outflow: number; n: number; tatSum: number; tatCount: number }> = {};
+    const map: Record<string, { inflow: number; outflow: number; n: number; tatSum: number; tatCount: number; over24: number }> = {};
     for (const r of yearFiltered) {
       const w = r.week;
       if (!w) continue;
-      if (!map[w]) map[w] = { inflow: 0, outflow: 0, n: 0, tatSum: 0, tatCount: 0 };
+      if (!map[w]) map[w] = { inflow: 0, outflow: 0, n: 0, tatSum: 0, tatCount: 0, over24: 0 };
       map[w].inflow += combinedInflow(r);
       map[w].outflow += combinedOutflow(r);
       map[w].n++;
@@ -231,6 +234,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
       if (t != null && !isNaN(t)) {
         map[w].tatSum += t;
         map[w].tatCount++;
+        if (t > 24) map[w].over24++;
       }
     }
     return Object.entries(map)
@@ -243,6 +247,8 @@ export default function Trends({ records, platform }: { records: any[]; platform
         avgOutflow: v.n ? v.outflow / v.n : 0,
         net: v.inflow - v.outflow,
         tat: v.tatCount ? v.tatSum / v.tatCount : null,
+        days: v.n,
+        over24Pct: v.tatCount ? (v.over24 / v.tatCount) * 100 : 0,
       }))
       .sort((a, b) => a.n - b.n);
   }, [yearFiltered, slicerKeys]);
