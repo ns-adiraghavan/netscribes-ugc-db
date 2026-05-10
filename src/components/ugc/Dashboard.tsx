@@ -531,7 +531,7 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
   return (
     <div style={{ display: "grid", gap: 24 }}>
       <div>
-        <h2 style={heading}>2025–Present Summary</h2>
+        <h2 style={heading}>Overall Summary</h2>
         <KpiRow rows={records} />
       </div>
 
