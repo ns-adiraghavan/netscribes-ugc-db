@@ -537,7 +537,7 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
 
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
         <div style={cardBox}>
-          <h3 style={cardHeading}>Inflow Content Mix — Overall</h3>
+          <h3 style={cardHeading}>Inflow Content Mix</h3>
           <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
             <PieChart width={320} height={260}>
               <Pie data={mixWithColor} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} cx="50%" cy="50%">
