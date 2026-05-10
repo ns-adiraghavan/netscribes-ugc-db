@@ -190,13 +190,14 @@ export default function Trends({ records, platform }: { records: any[]; platform
   }, [records, year]);
 
   const monthly = useMemo(() => {
-    const map: Record<string, { inflow: number; outflow: number; tatSum: number; tatCount: number }> = {};
+    const map: Record<string, { inflow: number; outflow: number; days: number; tatSum: number; tatCount: number }> = {};
     for (const r of yearFiltered) {
       if (!r.date) continue;
       const ym = String(r.date).slice(0, 7);
-      if (!map[ym]) map[ym] = { inflow: 0, outflow: 0, tatSum: 0, tatCount: 0 };
+      if (!map[ym]) map[ym] = { inflow: 0, outflow: 0, days: 0, tatSum: 0, tatCount: 0 };
       map[ym].inflow += combinedInflow(r);
       map[ym].outflow += combinedOutflow(r);
+      map[ym].days++;
       const t = tatToHours(r.tat);
       if (t != null && !isNaN(t)) {
         map[ym].tatSum += t;
@@ -210,6 +211,8 @@ export default function Trends({ records, platform }: { records: any[]; platform
         ym,
         inflow: v.inflow,
         outflow: v.outflow,
+        avgInflow: v.days ? v.inflow / v.days : 0,
+        avgOutflow: v.days ? v.outflow / v.days : 0,
         net: v.inflow - v.outflow,
         tat: v.tatCount ? v.tatSum / v.tatCount : null,
       }));
@@ -236,6 +239,8 @@ export default function Trends({ records, platform }: { records: any[]; platform
         n: weekNum(week),
         inflow: v.inflow,
         outflow: v.outflow,
+        avgInflow: v.n ? v.inflow / v.n : 0,
+        avgOutflow: v.n ? v.outflow / v.n : 0,
         net: v.inflow - v.outflow,
         tat: v.tatCount ? v.tatSum / v.tatCount : null,
       }))
@@ -303,7 +308,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
       {view === "monthly" ? (
         <>
           <div style={card}>
-            <h3 style={heading}>Monthly Inflow vs Outflow — {combinedLabel}</h3>
+            <h3 style={heading}>Monthly Inflow vs Outflow — Average (per day) — {combinedLabel}</h3>
             <div style={{ width: "100%", height: 320 }}>
               <ResponsiveContainer>
                 <LineChart data={monthly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
@@ -312,23 +317,11 @@ export default function Trends({ records, platform }: { records: any[]; platform
                   <YAxis tickFormatter={compactNum} tick={{ fontSize: 11, fill: COLORS.muted }} />
                   <Tooltip
                     contentStyle={tooltipStyle}
-                    formatter={(v: any, name: string) => [Number(v).toLocaleString(), `${combinedLabel} ${name}`]}
+                    formatter={(v: any, name: string) => [Math.round(Number(v)).toLocaleString(), name]}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <ReferenceLine
-                    y={monthlyAvg.inflow}
-                    stroke={COLORS.primary}
-                    strokeDasharray="4 4"
-                    label={{ value: `Avg In ${compactNum(Math.round(monthlyAvg.inflow))}`, position: "insideTopLeft", fill: COLORS.primary, fontSize: 10 }}
-                  />
-                  <ReferenceLine
-                    y={monthlyAvg.outflow}
-                    stroke={COLORS.purple}
-                    strokeDasharray="4 4"
-                    label={{ value: `Avg Out ${compactNum(Math.round(monthlyAvg.outflow))}`, position: "insideBottomLeft", fill: COLORS.purple, fontSize: 10 }}
-                  />
-                  <Line type="monotone" dataKey="inflow" name="Inflow" stroke={COLORS.primary} strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="outflow" name="Outflow" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="avgInflow" name="Avg Inflow" stroke={COLORS.primary} strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="avgOutflow" name="Avg Outflow" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -383,59 +376,56 @@ export default function Trends({ records, platform }: { records: any[]; platform
               </ResponsiveContainer>
             </div>
           </div>
+
+          <div style={card}>
+            <h3 style={heading}>Monthly Inflow vs Outflow — Total — {combinedLabel}</h3>
+            <div style={{ width: "100%", height: 320 }}>
+              <ResponsiveContainer>
+                <LineChart data={monthly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                  <CartesianGrid stroke={COLORS.border} vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: COLORS.muted }} />
+                  <YAxis tickFormatter={compactNum} tick={{ fontSize: 11, fill: COLORS.muted }} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(v: any, name: string) => [Number(v).toLocaleString(), `${combinedLabel} ${name}`]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <ReferenceLine
+                    y={monthlyAvg.inflow}
+                    stroke={COLORS.primary}
+                    strokeDasharray="4 4"
+                    label={{ value: `Avg In ${compactNum(Math.round(monthlyAvg.inflow))}`, position: "insideTopLeft", fill: COLORS.primary, fontSize: 10 }}
+                  />
+                  <ReferenceLine
+                    y={monthlyAvg.outflow}
+                    stroke={COLORS.purple}
+                    strokeDasharray="4 4"
+                    label={{ value: `Avg Out ${compactNum(Math.round(monthlyAvg.outflow))}`, position: "insideBottomLeft", fill: COLORS.purple, fontSize: 10 }}
+                  />
+                  <Line type="monotone" dataKey="inflow" name="Inflow" stroke={COLORS.primary} strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="outflow" name="Outflow" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </>
       ) : (
         <>
           <div style={card}>
-            <h3 style={heading}>Weekly Inflow vs Outflow — {combinedLabel}</h3>
-            <div style={{ fontSize: 12, color: COLORS.muted, margin: "0 0 8px" }}>Week highlights</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
-              {peak && (
-                <StatPill label="Peak week" value={`${peak.week} • ${peak.inflow.toLocaleString()}`} color={COLORS.primary} />
-              )}
-              {low && (
-                <StatPill label="Lowest week" value={`${low.week} • ${low.inflow.toLocaleString()}`} color={COLORS.muted} />
-              )}
-              <StatPill label="Weeks outflow > inflow" value={String(overflowCount)} color={COLORS.danger} />
-            </div>
+            <h3 style={heading}>Weekly Inflow vs Outflow — Average (per day) — {combinedLabel}</h3>
             <div style={{ width: "100%", height: 320 }}>
               <ResponsiveContainer>
                 <LineChart data={weekly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
                   <CartesianGrid stroke={COLORS.border} vertical={false} />
-                  <XAxis
-                    dataKey="week"
-                    tick={{ fontSize: 11, fill: COLORS.muted }}
-                    interval={3}
-                  />
+                  <XAxis dataKey="week" tick={{ fontSize: 11, fill: COLORS.muted }} interval={3} />
                   <YAxis tickFormatter={compactNum} tick={{ fontSize: 11, fill: COLORS.muted }} />
                   <Tooltip
                     contentStyle={tooltipStyle}
-                    formatter={(v: any, name: string) => [Number(v).toLocaleString(), name]}
-                    labelFormatter={(l) => l}
+                    formatter={(v: any, name: string) => [Math.round(Number(v)).toLocaleString(), name]}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <ReferenceLine
-                    y={weeklyAvg.inflow}
-                    stroke={COLORS.primary}
-                    strokeDasharray="4 4"
-                    label={{ value: `Avg In ${compactNum(Math.round(weeklyAvg.inflow))}`, position: "insideTopLeft", fill: COLORS.primary, fontSize: 10 }}
-                  />
-                  <ReferenceLine
-                    y={weeklyAvg.outflow}
-                    stroke={COLORS.purple}
-                    strokeDasharray="4 4"
-                    label={{ value: `Avg Out ${compactNum(Math.round(weeklyAvg.outflow))}`, position: "insideBottomLeft", fill: COLORS.purple, fontSize: 10 }}
-                  />
-                  <Line type="monotone" dataKey="inflow" name="Inflow" stroke={COLORS.primary} strokeWidth={2} dot={false} />
-                  <Line
-                    type="monotone"
-                    dataKey="outflow"
-                    name="Outflow"
-                    stroke={COLORS.purple}
-                    strokeWidth={2}
-                    strokeDasharray="6 4"
-                    dot={false}
-                  />
+                  <Line type="monotone" dataKey="avgInflow" name="Avg Inflow" stroke={COLORS.primary} strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="avgOutflow" name="Avg Outflow" stroke={COLORS.purple} strokeWidth={2} strokeDasharray="6 4" dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -486,6 +476,61 @@ export default function Trends({ records, platform }: { records: any[]; platform
                   />
                   <ReferenceLine y={0} stroke={COLORS.muted} strokeDasharray="2 4" />
                   <Line type="monotone" dataKey="net" name="Net" stroke={COLORS.text} strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div style={card}>
+            <h3 style={heading}>Weekly Inflow vs Outflow — Total — {combinedLabel}</h3>
+            <div style={{ fontSize: 12, color: COLORS.muted, margin: "0 0 8px" }}>Week highlights</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+              {peak && (
+                <StatPill label="Peak week" value={`${peak.week} • ${peak.inflow.toLocaleString()}`} color={COLORS.primary} />
+              )}
+              {low && (
+                <StatPill label="Lowest week" value={`${low.week} • ${low.inflow.toLocaleString()}`} color={COLORS.muted} />
+              )}
+              <StatPill label="Weeks outflow > inflow" value={String(overflowCount)} color={COLORS.danger} />
+            </div>
+            <div style={{ width: "100%", height: 320 }}>
+              <ResponsiveContainer>
+                <LineChart data={weekly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                  <CartesianGrid stroke={COLORS.border} vertical={false} />
+                  <XAxis
+                    dataKey="week"
+                    tick={{ fontSize: 11, fill: COLORS.muted }}
+                    interval={3}
+                  />
+                  <YAxis tickFormatter={compactNum} tick={{ fontSize: 11, fill: COLORS.muted }} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(v: any, name: string) => [Number(v).toLocaleString(), name]}
+                    labelFormatter={(l) => l}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <ReferenceLine
+                    y={weeklyAvg.inflow}
+                    stroke={COLORS.primary}
+                    strokeDasharray="4 4"
+                    label={{ value: `Avg In ${compactNum(Math.round(weeklyAvg.inflow))}`, position: "insideTopLeft", fill: COLORS.primary, fontSize: 10 }}
+                  />
+                  <ReferenceLine
+                    y={weeklyAvg.outflow}
+                    stroke={COLORS.purple}
+                    strokeDasharray="4 4"
+                    label={{ value: `Avg Out ${compactNum(Math.round(weeklyAvg.outflow))}`, position: "insideBottomLeft", fill: COLORS.purple, fontSize: 10 }}
+                  />
+                  <Line type="monotone" dataKey="inflow" name="Inflow" stroke={COLORS.primary} strokeWidth={2} dot={false} />
+                  <Line
+                    type="monotone"
+                    dataKey="outflow"
+                    name="Outflow"
+                    stroke={COLORS.purple}
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    dot={false}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
