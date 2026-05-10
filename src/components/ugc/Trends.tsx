@@ -190,11 +190,11 @@ export default function Trends({ records, platform }: { records: any[]; platform
   }, [records, year]);
 
   const monthly = useMemo(() => {
-    const map: Record<string, { inflow: number; outflow: number; days: number; tatSum: number; tatCount: number }> = {};
+    const map: Record<string, { inflow: number; outflow: number; days: number; tatSum: number; tatCount: number; over24: number }> = {};
     for (const r of yearFiltered) {
       if (!r.date) continue;
       const ym = String(r.date).slice(0, 7);
-      if (!map[ym]) map[ym] = { inflow: 0, outflow: 0, days: 0, tatSum: 0, tatCount: 0 };
+      if (!map[ym]) map[ym] = { inflow: 0, outflow: 0, days: 0, tatSum: 0, tatCount: 0, over24: 0 };
       map[ym].inflow += combinedInflow(r);
       map[ym].outflow += combinedOutflow(r);
       map[ym].days++;
@@ -202,6 +202,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
       if (t != null && !isNaN(t)) {
         map[ym].tatSum += t;
         map[ym].tatCount++;
+        if (t > 24) map[ym].over24++;
       }
     }
     return Object.entries(map)
@@ -215,15 +216,17 @@ export default function Trends({ records, platform }: { records: any[]; platform
         avgOutflow: v.days ? v.outflow / v.days : 0,
         net: v.inflow - v.outflow,
         tat: v.tatCount ? v.tatSum / v.tatCount : null,
+        days: v.days,
+        over24Pct: v.tatCount ? (v.over24 / v.tatCount) * 100 : 0,
       }));
   }, [yearFiltered, slicerKeys]);
 
   const weekly = useMemo(() => {
-    const map: Record<string, { inflow: number; outflow: number; n: number; tatSum: number; tatCount: number }> = {};
+    const map: Record<string, { inflow: number; outflow: number; n: number; tatSum: number; tatCount: number; over24: number }> = {};
     for (const r of yearFiltered) {
       const w = r.week;
       if (!w) continue;
-      if (!map[w]) map[w] = { inflow: 0, outflow: 0, n: 0, tatSum: 0, tatCount: 0 };
+      if (!map[w]) map[w] = { inflow: 0, outflow: 0, n: 0, tatSum: 0, tatCount: 0, over24: 0 };
       map[w].inflow += combinedInflow(r);
       map[w].outflow += combinedOutflow(r);
       map[w].n++;
@@ -231,6 +234,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
       if (t != null && !isNaN(t)) {
         map[w].tatSum += t;
         map[w].tatCount++;
+        if (t > 24) map[w].over24++;
       }
     }
     return Object.entries(map)
@@ -243,6 +247,8 @@ export default function Trends({ records, platform }: { records: any[]; platform
         avgOutflow: v.n ? v.outflow / v.n : 0,
         net: v.inflow - v.outflow,
         tat: v.tatCount ? v.tatSum / v.tatCount : null,
+        days: v.n,
+        over24Pct: v.tatCount ? (v.over24 / v.tatCount) * 100 : 0,
       }))
       .sort((a, b) => a.n - b.n);
   }, [yearFiltered, slicerKeys]);
@@ -307,6 +313,17 @@ export default function Trends({ records, platform }: { records: any[]; platform
 
       {view === "monthly" ? (
         <>
+          <SummaryTable
+            label="Month"
+            rows={monthly.map((m) => ({
+              key: m.ym,
+              label: m.month,
+              avgInflow: m.avgInflow,
+              avgOutflow: m.avgOutflow,
+              tat: m.tat,
+              over24Pct: m.over24Pct,
+            }))}
+          />
           <div style={card}>
             <h3 style={heading}>Monthly Inflow vs Outflow — Average (per day) — {combinedLabel}</h3>
             <div style={{ width: "100%", height: 320 }}>
@@ -411,6 +428,17 @@ export default function Trends({ records, platform }: { records: any[]; platform
         </>
       ) : (
         <>
+          <SummaryTable
+            label="Week"
+            rows={weekly.map((w) => ({
+              key: w.week,
+              label: w.week,
+              avgInflow: w.avgInflow,
+              avgOutflow: w.avgOutflow,
+              tat: w.tat,
+              over24Pct: w.over24Pct,
+            }))}
+          />
           <div style={card}>
             <h3 style={heading}>Weekly Inflow vs Outflow — Average (per day) — {combinedLabel}</h3>
             <div style={{ width: "100%", height: 320 }}>
@@ -546,6 +574,90 @@ function StatPill({ label, value, color }: { label: string; value: string; color
     <div style={{ background: "#F9FAFB", border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "8px 14px" }}>
       <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 14, fontWeight: 600, color }}>{value}</div>
+    </div>
+  );
+}
+
+type SummaryRow = {
+  key: string;
+  label: string;
+  avgInflow: number;
+  avgOutflow: number;
+  tat: number | null;
+  over24Pct: number;
+};
+
+function tatColor(t: number | null): string {
+  if (t == null) return "#F3F4F6";
+  if (t > 24) return "#FCA5A5";
+  if (t >= 12) return "#FCD9B6";
+  return "#BBF7D0";
+}
+
+function over24Color(p: number): string {
+  if (p > 20) return "#FCA5A5";
+  if (p > 5) return "#FCD9B6";
+  return "#BBF7D0";
+}
+
+function SummaryTable({ label, rows }: { label: string; rows: SummaryRow[] }) {
+  if (!rows.length) return null;
+  const headerStyle: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 700,
+    textAlign: "left",
+    padding: "10px 12px",
+    color: COLORS.muted,
+    letterSpacing: 0.3,
+  };
+  const cellStyle: React.CSSProperties = {
+    padding: "10px 12px",
+    fontSize: 13,
+    color: COLORS.text,
+    borderTop: `1px solid ${COLORS.border}`,
+  };
+  const chip = (bg: string): React.CSSProperties => ({
+    display: "inline-block",
+    padding: "3px 10px",
+    borderRadius: 999,
+    background: bg,
+    fontWeight: 600,
+    fontSize: 12,
+    color: "#111827",
+  });
+  return (
+    <div style={card}>
+      <h3 style={{ fontSize: 16, fontWeight: 600, color: COLORS.text, margin: "0 0 12px", borderLeft: `3px solid ${COLORS.primary}`, paddingLeft: 10 }}>
+        Summary — {label} × Metrics
+      </h3>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+          <thead>
+            <tr>
+              <th style={{ ...headerStyle, color: COLORS.muted }}>{label}</th>
+              <th style={{ ...headerStyle, color: COLORS.primary }}>Avg Daily Inflow</th>
+              <th style={{ ...headerStyle, color: COLORS.purple }}>Avg Daily Outflow</th>
+              <th style={{ ...headerStyle, color: "#7E3AF2" }}>Avg TAT</th>
+              <th style={{ ...headerStyle, color: COLORS.danger }}>% Days TAT &gt; 24h</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key}>
+                <td style={{ ...cellStyle, fontWeight: 600 }}>{r.label}</td>
+                <td style={cellStyle}>{Math.round(r.avgInflow).toLocaleString()}</td>
+                <td style={cellStyle}>{Math.round(r.avgOutflow).toLocaleString()}</td>
+                <td style={cellStyle}>
+                  <span style={chip(tatColor(r.tat))}>{r.tat == null ? "—" : `${r.tat.toFixed(1)}h`}</span>
+                </td>
+                <td style={cellStyle}>
+                  <span style={chip(over24Color(r.over24Pct))}>{r.over24Pct.toFixed(1)}%</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
