@@ -645,7 +645,7 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
       </div>
 
       <div style={{ fontSize: 12, fontStyle: "italic", color: "#6B7280" }}>
-        Data from {minDate} to {maxDate}. {count} days on record.
+        2026 YTD Summary
       </div>
     </div>
   );
