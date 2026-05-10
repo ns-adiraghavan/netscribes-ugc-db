@@ -190,13 +190,14 @@ export default function Trends({ records, platform }: { records: any[]; platform
   }, [records, year]);
 
   const monthly = useMemo(() => {
-    const map: Record<string, { inflow: number; outflow: number; tatSum: number; tatCount: number }> = {};
+    const map: Record<string, { inflow: number; outflow: number; days: number; tatSum: number; tatCount: number }> = {};
     for (const r of yearFiltered) {
       if (!r.date) continue;
       const ym = String(r.date).slice(0, 7);
-      if (!map[ym]) map[ym] = { inflow: 0, outflow: 0, tatSum: 0, tatCount: 0 };
+      if (!map[ym]) map[ym] = { inflow: 0, outflow: 0, days: 0, tatSum: 0, tatCount: 0 };
       map[ym].inflow += combinedInflow(r);
       map[ym].outflow += combinedOutflow(r);
+      map[ym].days++;
       const t = tatToHours(r.tat);
       if (t != null && !isNaN(t)) {
         map[ym].tatSum += t;
@@ -210,6 +211,8 @@ export default function Trends({ records, platform }: { records: any[]; platform
         ym,
         inflow: v.inflow,
         outflow: v.outflow,
+        avgInflow: v.days ? v.inflow / v.days : 0,
+        avgOutflow: v.days ? v.outflow / v.days : 0,
         net: v.inflow - v.outflow,
         tat: v.tatCount ? v.tatSum / v.tatCount : null,
       }));
@@ -236,6 +239,8 @@ export default function Trends({ records, platform }: { records: any[]; platform
         n: weekNum(week),
         inflow: v.inflow,
         outflow: v.outflow,
+        avgInflow: v.n ? v.inflow / v.n : 0,
+        avgOutflow: v.n ? v.outflow / v.n : 0,
         net: v.inflow - v.outflow,
         tat: v.tatCount ? v.tatSum / v.tatCount : null,
       }))
