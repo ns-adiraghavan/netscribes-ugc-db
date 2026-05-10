@@ -531,13 +531,13 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
   return (
     <div style={{ display: "grid", gap: 24 }}>
       <div>
-        <h2 style={heading}>2025–Present Summary</h2>
+        <h2 style={heading}>Overall Summary</h2>
         <KpiRow rows={records} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
         <div style={cardBox}>
-          <h3 style={cardHeading}>Inflow Content Mix — 2025–Present</h3>
+          <h3 style={cardHeading}>Inflow Content Mix — Overall</h3>
           <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
             <PieChart width={320} height={260}>
               <Pie data={mixWithColor} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} cx="50%" cy="50%">
