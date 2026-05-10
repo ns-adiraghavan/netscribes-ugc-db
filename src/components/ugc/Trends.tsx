@@ -210,6 +210,7 @@ export default function Trends({ records, platform }: { records: any[]; platform
         ym,
         inflow: v.inflow,
         outflow: v.outflow,
+        net: v.inflow - v.outflow,
         tat: v.tatCount ? v.tatSum / v.tatCount : null,
       }));
   }, [yearFiltered, slicerKeys]);
