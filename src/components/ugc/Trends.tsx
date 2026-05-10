@@ -577,3 +577,87 @@ function StatPill({ label, value, color }: { label: string; value: string; color
     </div>
   );
 }
+
+type SummaryRow = {
+  key: string;
+  label: string;
+  avgInflow: number;
+  avgOutflow: number;
+  tat: number | null;
+  over24Pct: number;
+};
+
+function tatColor(t: number | null): string {
+  if (t == null) return "#F3F4F6";
+  if (t > 24) return "#FCA5A5";
+  if (t >= 12) return "#FCD9B6";
+  return "#BBF7D0";
+}
+
+function over24Color(p: number): string {
+  if (p > 20) return "#FCA5A5";
+  if (p > 5) return "#FCD9B6";
+  return "#BBF7D0";
+}
+
+function SummaryTable({ label, rows }: { label: string; rows: SummaryRow[] }) {
+  if (!rows.length) return null;
+  const headerStyle: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 700,
+    textAlign: "left",
+    padding: "10px 12px",
+    color: COLORS.muted,
+    letterSpacing: 0.3,
+  };
+  const cellStyle: React.CSSProperties = {
+    padding: "10px 12px",
+    fontSize: 13,
+    color: COLORS.text,
+    borderTop: `1px solid ${COLORS.border}`,
+  };
+  const chip = (bg: string): React.CSSProperties => ({
+    display: "inline-block",
+    padding: "3px 10px",
+    borderRadius: 999,
+    background: bg,
+    fontWeight: 600,
+    fontSize: 12,
+    color: "#111827",
+  });
+  return (
+    <div style={card}>
+      <h3 style={{ fontSize: 16, fontWeight: 600, color: COLORS.text, margin: "0 0 12px", borderLeft: `3px solid ${COLORS.primary}`, paddingLeft: 10 }}>
+        Summary — {label} × Metrics
+      </h3>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+          <thead>
+            <tr>
+              <th style={{ ...headerStyle, color: COLORS.muted }}>{label}</th>
+              <th style={{ ...headerStyle, color: COLORS.primary }}>Avg Daily Inflow</th>
+              <th style={{ ...headerStyle, color: COLORS.purple }}>Avg Daily Outflow</th>
+              <th style={{ ...headerStyle, color: "#7E3AF2" }}>Avg TAT</th>
+              <th style={{ ...headerStyle, color: COLORS.danger }}>% Days TAT &gt; 24h</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key}>
+                <td style={{ ...cellStyle, fontWeight: 600 }}>{r.label}</td>
+                <td style={cellStyle}>{Math.round(r.avgInflow).toLocaleString()}</td>
+                <td style={cellStyle}>{Math.round(r.avgOutflow).toLocaleString()}</td>
+                <td style={cellStyle}>
+                  <span style={chip(tatColor(r.tat))}>{r.tat == null ? "—" : `${r.tat.toFixed(1)}h`}</span>
+                </td>
+                <td style={cellStyle}>
+                  <span style={chip(over24Color(r.over24Pct))}>{r.over24Pct.toFixed(1)}%</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
