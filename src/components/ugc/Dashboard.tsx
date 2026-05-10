@@ -645,7 +645,7 @@ function Overview({ records, platform }: { records: any[]; platform: Platform })
       </div>
 
       <div style={{ fontSize: 12, fontStyle: "italic", color: "#6B7280" }}>
-        2026 YTD Summary
+        Data sourced from 2025-01-01 to 2026-05-04. 489 days to date.
       </div>
     </div>
   );
