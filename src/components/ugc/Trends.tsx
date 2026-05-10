@@ -215,17 +215,29 @@ export default function Trends({ records, platform }: { records: any[]; platform
   }, [yearFiltered, slicerKeys]);
 
   const weekly = useMemo(() => {
-    const map: Record<string, { inflow: number; outflow: number; n: number }> = {};
+    const map: Record<string, { inflow: number; outflow: number; n: number; tatSum: number; tatCount: number }> = {};
     for (const r of yearFiltered) {
       const w = r.week;
       if (!w) continue;
-      if (!map[w]) map[w] = { inflow: 0, outflow: 0, n: 0 };
+      if (!map[w]) map[w] = { inflow: 0, outflow: 0, n: 0, tatSum: 0, tatCount: 0 };
       map[w].inflow += combinedInflow(r);
       map[w].outflow += combinedOutflow(r);
       map[w].n++;
+      const t = tatToHours(r.tat);
+      if (t != null && !isNaN(t)) {
+        map[w].tatSum += t;
+        map[w].tatCount++;
+      }
     }
     return Object.entries(map)
-      .map(([week, v]) => ({ week, n: weekNum(week), inflow: v.inflow, outflow: v.outflow }))
+      .map(([week, v]) => ({
+        week,
+        n: weekNum(week),
+        inflow: v.inflow,
+        outflow: v.outflow,
+        net: v.inflow - v.outflow,
+        tat: v.tatCount ? v.tatSum / v.tatCount : null,
+      }))
       .sort((a, b) => a.n - b.n);
   }, [yearFiltered, slicerKeys]);
 
